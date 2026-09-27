@@ -83,13 +83,17 @@ Design notes:
 - **3D performance.** Branches and nodes are instanced meshes. The layout depends only on the tree's structure, so editing a title doesn't rebuild the scene.
 - **Look.** The visual language comes from [BruNet](https://github.com/crystalcoves/BruNet): hub panels with amber corner brackets, mono labels, cyan holo lines. Following BruNet's rules, large surfaces use no `backdrop-filter` and no looping animations. Reduced motion is honoured everywhere, including the system setting on first run.
 
-## Deploy (GitHub Pages)
+## Deploy (Fly.io)
 
-`.github/workflows/deploy.yml` tests, builds with `BASE_PATH=/<repo>/`, and publishes `dist/` on every push to `main`.
+Mindgrove runs on Fly.io like the other projects. It's the app `mindgrove` in `jnb`, and it lives at https://mindgrove.fly.dev/.
 
-One-time setup: in the repository, open **Settings → Pages → Build and deployment → Source** and choose **GitHub Actions**. The app will then be served at `https://<owner>.github.io/mindgrove/`.
+- `Dockerfile` builds the app with Node, then serves `dist/` with nginx on port 8080. `deploy/nginx.conf` sets caching: hashed assets are immutable, while the page, the service worker and the manifest always revalidate.
+- `fly.toml` runs one `shared-cpu-1x` / 256 MB machine. There is no volume, because all data lives in each user's browser. The machine stops when idle and starts again on the next request.
+- `.github/workflows/fly-deploy.yml` runs on every push to `main`. It checks formatting, runs the tests, builds, creates the Fly app if it doesn't exist yet, and runs `flyctl deploy`.
 
-To host somewhere else (Vercel, Netlify, any static host), run `npm run build` and serve `dist/`. Leave `BASE_PATH` unset when serving from the domain root.
+One-time setup: create a deploy token with `fly tokens create org personal` (or `fly auth token`). Add it to the repository under **Settings → Secrets and variables → Actions** as `FLY_API_TOKEN`. Until the token exists, the workflow still builds and tests but skips the deploy.
+
+Manual deploy from your machine: `fly deploy`.
 
 `.github/workflows/ci.yml` runs the format check, the tests, and the build on pull requests.
 

@@ -1,0 +1,37 @@
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --check src
+      - run: npm test
+      - run: npm run build
+      - name: Skip when no Fly token is configured
+        if: env.FLY_API_TOKEN == ''
+        run: echo "::warning::FLY_API_TOKEN secret not set — skipping Fly deploy."
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: env.FLY_API_TOKEN != ''
+      - name: Create the Fly app on first deploy
+        if: env.FLY_API_TOKEN != ''
+        run: flyctl status --app mindgrove >/dev/null 2>&1 || flyctl apps create mindgrove --org personal
+      - name: Deploy
+        if: env.FLY_API_TOKEN != ''
+        run: flyctl deploy --remote-only --ha=false
