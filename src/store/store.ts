@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist as db, loadAll } from "../db/db";
+import { db as dexie, persist as db, loadAll } from "../db/db";
+import { REFLECTION_LIMB_ID, tidySnapshot } from "../model/tidy";
 import { uid } from "../lib/id";
 import {
   EMPTY_FILTERS,
@@ -103,6 +104,8 @@ interface Actions {
   applySync(doc: SyncDoc): void;
   /** Take in data another open copy of the app already stored (no re-write). */
   absorb(doc: SyncDoc): void;
+  /** Merge duplicates (same-name limbs, identical sibling thoughts); true if anything changed. */
+  tidyUp(): boolean;
   merge(s: Snapshot): void;
   snapshot(): Snapshot;
 
@@ -217,6 +220,26 @@ export const useStore = create<Store>()((set, get) => {
           dismissedVines: data.dismissedVines,
           tombstones: data.tombstones,
         });
+        // One-time: add the Reflection limb. A fixed id means two devices that
+        // both add it end up with one limb after syncing, not two.
+        if (!(await dexie.kv.get("added:reflection"))?.value) {
+          const limbs = Object.values(get().limbs);
+          if (!limbs.some((l) => l.id === REFLECTION_LIMB_ID || l.name.trim().toLowerCase() === "reflection")) {
+            const ts = now();
+            const limb: Limb = {
+              id: REFLECTION_LIMB_ID,
+              name: "Reflection",
+              color: "#ff6fae",
+              order: limbs.length ? Math.max(...limbs.map((l) => l.order)) + 1 : 0,
+              createdAt: ts,
+              updatedAt: ts,
+            };
+            set((st) => ({ limbs: { ...st.limbs, [limb.id]: limb } }));
+            db.putLimbs([limb]);
+          }
+          db.setKV("added:reflection", true);
+        }
+        get().tidyUp();
       })();
       return initOnce;
     },
@@ -521,6 +544,33 @@ export const useStore = create<Store>()((set, get) => {
       }));
       db.replaceAll(doc);
       db.setKV("tombstones", doc.tombstones);
+    },
+
+    tidyUp() {
+      const r = tidySnapshot(get().snapshot());
+      if (!r.removed.length && !r.thoughts.length && !r.limbs.length && !r.links.length) return false;
+      bury(r.removed);
+      const gone = new Set(r.removed);
+      set((st) => {
+        const keep = <X extends { id: string }>(m: Record<string, X>, ch: X[]) => {
+          const next = Object.fromEntries(Object.entries(m).filter(([id]) => !gone.has(id)));
+          for (const c of ch) next[c.id] = c;
+          return next;
+        };
+        return {
+          thoughts: keep(st.thoughts, r.thoughts),
+          limbs: keep(st.limbs, r.limbs),
+          links: keep(st.links, r.links),
+          selectedId: st.selectedId && gone.has(st.selectedId) ? null : st.selectedId,
+        };
+      });
+      db.deleteThoughts(r.removed);
+      db.deleteLinks(r.removed);
+      for (const id of r.removed) db.deleteLimb(id);
+      db.putThoughts(r.thoughts);
+      db.putLimbs(r.limbs);
+      db.putLinks(r.links);
+      return true;
     },
 
     absorb(doc) {

@@ -84,6 +84,9 @@ export async function syncNow(): Promise<void> {
         } finally {
           applying = false;
         }
+        // Another device may have brought duplicates (e.g. its own starter tree);
+        // merging them changes data, which schedules the next push.
+        useStore.getState().tidyUp();
       }
       if (r.status === 200 && sig === docSignature(remote)) break; // server already has it all
 

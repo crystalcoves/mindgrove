@@ -92,7 +92,7 @@ export function demoSnapshot(ts: number): Snapshot {
       ],
     ],
     null,
-    addLimb("Getting started", "#4fe3ff"),
+    addLimb("General", "#4fe3ff"),
   );
 
   grow(

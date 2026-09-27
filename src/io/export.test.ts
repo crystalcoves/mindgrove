@@ -26,7 +26,7 @@ describe("markdown export", () => {
 
   it("writes one file per limb plus Seeds.md", () => {
     const files = exportMarkdown(snap);
-    expect(files.map((f) => f.name)).toEqual(["Seeds.md", "Getting started.md", "Work.md", "Life.md", "Ideas.md"]);
+    expect(files.map((f) => f.name)).toEqual(["Seeds.md", "General.md", "Work.md", "Life.md", "Ideas.md"]);
     expect(files[2].content).toContain("- Ship the side project `growing` #goal");
     expect(files[2].content).toContain("  - Pick one feature for v1 `blooming`");
   });

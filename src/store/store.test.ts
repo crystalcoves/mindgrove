@@ -145,3 +145,22 @@ describe("limbs", () => {
     expect(names()).toEqual(["B", "A", "C"]);
   });
 });
+
+describe("tidy on the store", () => {
+  it("merges a second copy of a limb and its thoughts, and tombstones the extras", () => {
+    const a = s().addLimb("Work");
+    const b = s().addLimb("work");
+    const t1 = s().capture("Ship it", { limbId: a.id })!;
+    const t2 = s().capture("Ship it", { limbId: b.id })!;
+    s().capture("Only in copy", { parentId: t2 });
+    expect(s().tidyUp()).toBe(true);
+    const limbs = Object.values(s().limbs).filter((l) => l.name.toLowerCase() === "work");
+    expect(limbs).toHaveLength(1);
+    const ships = Object.values(s().thoughts).filter((t) => t.title === "Ship it");
+    expect(ships).toHaveLength(1);
+    expect(kids(ships[0].id)).toEqual(["Only in copy"]);
+    const gone = [t1, t2].find((id) => id !== ships[0].id)!;
+    expect(s().tombstones[gone]).toBeGreaterThan(0);
+    expect(s().tidyUp()).toBe(false);
+  });
+});
