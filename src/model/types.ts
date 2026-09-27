@@ -22,6 +22,7 @@ export interface Link {
   id: string;
   from: string;
   to: string;
+  createdAt?: number;
 }
 
 export interface Limb {
@@ -30,6 +31,8 @@ export interface Limb {
   color: string;
   order: number;
   createdAt: number;
+  /** Last change; used to merge edits from other devices. */
+  updatedAt?: number;
 }
 
 export type ThemeName = "holo" | "biolume" | "aurora";

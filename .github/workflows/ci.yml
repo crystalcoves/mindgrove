@@ -13,6 +13,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx prettier --check src
+      - run: npx prettier --check src server
       - run: npm test
       - run: npm run build

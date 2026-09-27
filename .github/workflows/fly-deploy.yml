@@ -21,7 +21,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx prettier --check src
+      - run: npx prettier --check src server
       - run: npm test
       - run: npm run build
       - name: Skip when no Fly token is configured
@@ -32,6 +32,17 @@ jobs:
       - name: Create the Fly app on first deploy
         if: env.FLY_API_TOKEN != ''
         run: flyctl status --app mindgrove >/dev/null 2>&1 || flyctl apps create mindgrove --org personal
+      - name: Ensure the sync volume exists
+        if: env.FLY_API_TOKEN != ''
+        run: |
+          if ! flyctl volumes list --app mindgrove --json | jq -e 'map(select(.name == "mindgrove_data")) | length > 0' >/dev/null; then
+            flyctl volumes create mindgrove_data --app mindgrove --region jnb --size 1 --yes
+          fi
+          # Machines created before the volume existed can't mount it. They were
+          # stateless, so replace them; the deploy below starts one with the volume.
+          for m in $(flyctl machines list --app mindgrove --json | jq -r '.[] | select(((.config.mounts // []) | length) == 0) | .id'); do
+            flyctl machines destroy "$m" --app mindgrove --force
+          done
       - name: Deploy
         if: env.FLY_API_TOKEN != ''
         run: flyctl deploy --remote-only --ha=false
@@ -41,11 +52,15 @@ jobs:
           flyctl status --app mindgrove
           ok=""
           for i in 1 2 3 4 5 6; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" https://mindgrove.fly.dev/manifest.webmanifest || true)
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://mindgrove.fly.dev/api/health || true)
             echo "attempt $i: $code"
             if [ "$code" = "200" ]; then ok=1; break; fi
             sleep 10
           done
           curl -sSI https://mindgrove.fly.dev/ || true
+          # The sync API must answer: 404 means "no grove with this id yet".
+          sync=$(curl -s -o /dev/null -w "%{http_code}" "https://mindgrove.fly.dev/api/sync/$(printf '0%.0s' $(seq 64))")
+          echo "sync api: $sync"
           flyctl logs --app mindgrove --no-tail | tail -40 || true
           [ -n "$ok" ] || { echo "::error::https://mindgrove.fly.dev/ did not return 200"; exit 1; }
+          [ "$sync" = "404" ] || { echo "::error::sync API did not answer as expected ($sync)"; exit 1; }

@@ -15,6 +15,7 @@ import {
 import type { Limb, Link, Settings, Snapshot, Status, Thought } from "../model/types";
 import { demoSnapshot } from "./demo";
 import { pairKey } from "../model/suggest";
+import type { SyncDoc, Tombstones } from "../sync/merge";
 
 export type View = "grove" | "canopy";
 export type PaletteMode = "go" | "link" | "move";
@@ -65,6 +66,8 @@ interface State {
   toasts: Toast[];
   /** Suggested vines the user said no to, keyed by pairKey. */
   dismissedVines: Record<string, boolean>;
+  /** Deletion times by id, so deletions reach other devices through sync. */
+  tombstones: Tombstones;
   /** Ids born this session, with birth time, so the canopy can animate their growth. */
   births: Record<string, number>;
 }
@@ -96,6 +99,8 @@ interface Actions {
   dismissVine(a: string, b: string): void;
 
   replaceAll(s: Snapshot): void;
+  /** Replace data with a merged sync document, keeping UI state. */
+  applySync(doc: SyncDoc): void;
   merge(s: Snapshot): void;
   snapshot(): Snapshot;
 
@@ -140,6 +145,27 @@ export const useStore = create<Store>()((set, get) => {
     db.putThoughts(list);
   };
 
+  const bury = (ids: string[]) => {
+    if (!ids.length) return;
+    const ts = now();
+    const tombstones = { ...get().tombstones };
+    for (const id of ids) tombstones[id] = ts;
+    set({ tombstones });
+    db.setKV("tombstones", tombstones);
+  };
+  const unbury = (ids: string[]) => {
+    const tombstones = { ...get().tombstones };
+    let changed = false;
+    for (const id of ids)
+      if (id in tombstones) {
+        delete tombstones[id];
+        changed = true;
+      }
+    if (!changed) return;
+    set({ tombstones });
+    db.setKV("tombstones", tombstones);
+  };
+
   const normalizePlace = (p: Partial<Place>): Place => {
     const parentId = p.parentId ?? null;
     // Only roots carry a limb; children inherit through their ancestors.
@@ -168,6 +194,7 @@ export const useStore = create<Store>()((set, get) => {
     toasts: [],
     births: {},
     dismissedVines: {},
+    tombstones: {},
 
     init() {
       // Idempotent: StrictMode and HMR may call this more than once.
@@ -186,6 +213,7 @@ export const useStore = create<Store>()((set, get) => {
           links: Object.fromEntries(snap.links.map((l) => [l.id, l])),
           settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}) },
           dismissedVines: data.dismissedVines,
+          tombstones: data.tombstones,
         });
       })();
       return initOnce;
@@ -287,7 +315,7 @@ export const useStore = create<Store>()((set, get) => {
       const ts = now();
       putThoughts([
         { ...t, order: other.order, updatedAt: ts },
-        { ...other, order: t.order },
+        { ...other, order: t.order, updatedAt: ts },
       ]);
     },
 
@@ -302,7 +330,8 @@ export const useStore = create<Store>()((set, get) => {
       const lo = t.order;
       const hi = sibs[i + 1]?.order ?? lo + 1;
       const step = (hi - lo) / (kids.length + 1);
-      const lifted = kids.map((k, n) => ({ ...k, parentId: t.parentId, limbId: t.limbId, order: lo + step * n }));
+      const ts = now();
+      const lifted = kids.map((k, n) => ({ ...k, parentId: t.parentId, limbId: t.limbId, order: lo + step * n, updatedAt: ts }));
       const deadLinks = Object.values(links).filter((l) => l.from === id || l.to === id);
 
       set((s) => {
@@ -320,14 +349,19 @@ export const useStore = create<Store>()((set, get) => {
       db.deleteThoughts([id]);
       db.putThoughts(lifted);
       db.deleteLinks(deadLinks.map((l) => l.id));
+      bury([id, ...deadLinks.map((l) => l.id)]);
 
       if (opts?.silent) return;
       get().toast(`Removed “${truncate(t.title || "untitled", 40)}”`, {
         label: "Undo",
         run: () => {
-          putThoughts([t, ...kids]);
-          set((s) => ({ links: { ...s.links, ...Object.fromEntries(deadLinks.map((l) => [l.id, l])) }, selectedId: id }));
-          db.putLinks(deadLinks);
+          // Restored records are newer than their tombstones, so the undo syncs too.
+          const at = now();
+          putThoughts([t, ...kids].map((x) => ({ ...x, updatedAt: at })));
+          const back = deadLinks.map((l) => ({ ...l, createdAt: at }));
+          set((s) => ({ links: { ...s.links, ...Object.fromEntries(back.map((l) => [l.id, l])) }, selectedId: id }));
+          db.putLinks(back);
+          unbury([id, ...deadLinks.map((l) => l.id)]);
         },
       });
     },
@@ -375,6 +409,7 @@ export const useStore = create<Store>()((set, get) => {
         color: color ?? LIMB_COLORS[limbs.length % LIMB_COLORS.length],
         order: limbs.length ? Math.max(...limbs.map((l) => l.order)) + 1 : 0,
         createdAt: now(),
+        updatedAt: now(),
       };
       set((s) => ({ limbs: { ...s.limbs, [limb.id]: limb }, births: { ...s.births, [limb.id]: performanceNow() } }));
       db.putLimbs([limb]);
@@ -384,7 +419,7 @@ export const useStore = create<Store>()((set, get) => {
     updateLimb(id, patch) {
       const l = get().limbs[id];
       if (!l) return;
-      const next = { ...l, ...patch };
+      const next = { ...l, ...patch, updatedAt: now() };
       set((s) => ({ limbs: { ...s.limbs, [id]: next } }));
       db.putLimbs([next]);
     },
@@ -398,7 +433,8 @@ export const useStore = create<Store>()((set, get) => {
       const next = [...rest];
       next.splice(i === -1 ? rest.length : i, 0, limb);
       // Renumber so orders stay small integers (they seed the canopy layout).
-      const changed = next.map((l, n) => ({ ...l, order: n })).filter((l) => l.order !== get().limbs[l.id].order);
+      const ts = now();
+      const changed = next.map((l, n) => ({ ...l, order: n, updatedAt: ts })).filter((l) => l.order !== get().limbs[l.id].order);
       if (!changed.length) return;
       set((s) => ({ limbs: { ...s.limbs, ...Object.fromEntries(changed.map((l) => [l.id, l])) } }));
       db.putLimbs(changed);
@@ -411,7 +447,8 @@ export const useStore = create<Store>()((set, get) => {
       // Its branches fall back to the seed inbox rather than vanishing.
       const roots = Object.values(thoughts).filter((t) => !t.parentId && t.limbId === id);
       let order = nextOrder({ parentId: null, limbId: null });
-      const moved = roots.sort(byOrder).map((t) => ({ ...t, limbId: null, order: order++ }));
+      const ts = now();
+      const moved = roots.sort(byOrder).map((t) => ({ ...t, limbId: null, order: order++, updatedAt: ts }));
       set((s) => {
         const next = { ...s.limbs };
         delete next[id];
@@ -419,6 +456,7 @@ export const useStore = create<Store>()((set, get) => {
       });
       putThoughts(moved);
       db.deleteLimb(id);
+      bury([id]);
       get().toast(`Removed limb “${limb.name}” — ${moved.length} branch${moved.length === 1 ? "" : "es"} returned to seeds`);
     },
 
@@ -426,7 +464,7 @@ export const useStore = create<Store>()((set, get) => {
       if (from === to) return;
       const exists = Object.values(get().links).some((l) => (l.from === from && l.to === to) || (l.from === to && l.to === from));
       if (exists) return;
-      const link: Link = { id: uid(), from, to };
+      const link: Link = { id: uid(), from, to, createdAt: now() };
       set((s) => ({ links: { ...s.links, [link.id]: link } }));
       db.putLinks([link]);
       get().touch(from);
@@ -439,6 +477,7 @@ export const useStore = create<Store>()((set, get) => {
         return { links: next };
       });
       db.deleteLinks([id]);
+      bury([id]);
     },
 
     dismissVine(a, b) {
@@ -448,6 +487,16 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     replaceAll(s) {
+      // Restoring a backup deletes what it doesn't contain — on synced devices too.
+      const keep = new Set([...s.thoughts, ...s.limbs, ...s.links].map((r) => r.id));
+      const cur = get();
+      bury([...Object.keys(cur.thoughts), ...Object.keys(cur.limbs), ...Object.keys(cur.links)].filter((id) => !keep.has(id)));
+      const ts = now();
+      s = {
+        thoughts: s.thoughts.map((t) => ({ ...t, updatedAt: Math.max(t.updatedAt, ts) })),
+        limbs: s.limbs.map((l) => ({ ...l, updatedAt: ts })),
+        links: s.links.map((l) => ({ ...l, createdAt: ts })),
+      };
       set({
         thoughts: Object.fromEntries(s.thoughts.map((t) => [t.id, t])),
         limbs: Object.fromEntries(s.limbs.map((l) => [l.id, l])),
@@ -456,6 +505,19 @@ export const useStore = create<Store>()((set, get) => {
         editingId: null,
       });
       db.replaceAll(s);
+    },
+
+    applySync(doc) {
+      set((st) => ({
+        thoughts: Object.fromEntries(doc.thoughts.map((t) => [t.id, t])),
+        limbs: Object.fromEntries(doc.limbs.map((l) => [l.id, l])),
+        links: Object.fromEntries(doc.links.map((l) => [l.id, l])),
+        tombstones: doc.tombstones,
+        selectedId: st.selectedId && doc.thoughts.some((t) => t.id === st.selectedId) ? st.selectedId : null,
+        editingId: st.editingId && doc.thoughts.some((t) => t.id === st.editingId) ? st.editingId : null,
+      }));
+      db.replaceAll(doc);
+      db.setKV("tombstones", doc.tombstones);
     },
 
     merge(s) {

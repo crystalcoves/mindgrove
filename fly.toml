@@ -1,15 +1,23 @@
-# Fly.io config for Mindgrove — a static PWA served by nginx.
-# All user data lives in the browser (IndexedDB), so the machine is stateless:
-# no volume, and it can sleep when idle and wake on the next request.
+# Fly.io config for Mindgrove: the PWA plus end-to-end encrypted sync.
+# The server only stores ciphertext blobs (one small file per synced grove) on
+# the mindgrove_data volume, so the app must stay on a single machine.
 app = "mindgrove"
 primary_region = "jnb"
 
 [build]
 
+[env]
+  PORT = "8080"
+  DATA_DIR = "/data"
+
+[mounts]
+  source = "mindgrove_data"
+  destination = "/data"
+
 [http_service]
   internal_port = 8080
   force_https = true
-  # Stateless static site: stop when idle to keep cost near zero.
+  # Sleeps when idle and wakes on the next request (the first one takes ~1-2 s).
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
@@ -18,7 +26,7 @@ primary_region = "jnb"
     grace_period = "5s"
     interval = "30s"
     method = "GET"
-    path = "/manifest.webmanifest"
+    path = "/api/health"
     timeout = "5s"
 
 [[vm]]

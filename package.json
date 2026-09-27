@@ -10,8 +10,10 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
-    "format": "prettier --write src",
-    "lint": "prettier --check src && tsc -b"
+    "format": "prettier --write src server",
+    "lint": "prettier --check src server && tsc -b",
+    "server": "node server/server.mjs",
+    "serve": "npm run build && node server/server.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

@@ -33,6 +33,12 @@ export function useHotkeys() {
       }
 
       const overlay = st.captureOpen || st.paletteOpen || st.settingsOpen || st.tendOpen;
+      // Escape closes a panel even when focus has fallen back to the page.
+      if (k === "Escape" && (st.settingsOpen || st.tendOpen)) {
+        st.openSettings(false);
+        st.openTend(false);
+        return;
+      }
       if (overlay || isTyping(e) || st.editingId) return;
 
       if (k === "Escape") {

@@ -26,15 +26,21 @@ class GroveDB extends Dexie {
 export const db = new GroveDB();
 
 export async function loadAll(): Promise<
-  Snapshot & { settings: Partial<Settings> | null; seeded: boolean; dismissedVines: Record<string, boolean> }
+  Snapshot & {
+    settings: Partial<Settings> | null;
+    seeded: boolean;
+    dismissedVines: Record<string, boolean>;
+    tombstones: Record<string, number>;
+  }
 > {
-  const [thoughts, limbs, links, settings, seeded, dismissed] = await Promise.all([
+  const [thoughts, limbs, links, settings, seeded, dismissed, tombstones] = await Promise.all([
     db.thoughts.toArray(),
     db.limbs.toArray(),
     db.links.toArray(),
     db.kv.get("settings"),
     db.kv.get("seeded"),
     db.kv.get("dismissedVines"),
+    db.kv.get("tombstones"),
   ]);
   return {
     thoughts,
@@ -43,6 +49,7 @@ export async function loadAll(): Promise<
     settings: (settings?.value as Partial<Settings>) ?? null,
     seeded: !!seeded?.value,
     dismissedVines: (dismissed?.value as Record<string, boolean>) ?? {},
+    tombstones: (tombstones?.value as Record<string, number>) ?? {},
   };
 }
 

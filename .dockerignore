@@ -4,3 +4,5 @@ dev-dist
 .git
 docs
 *.tsbuildinfo
+server/*.test.mjs
+data

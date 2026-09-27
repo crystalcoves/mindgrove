@@ -4,6 +4,7 @@ import { byOrder } from "../model/tree";
 import type { ParticleLevel, ThemeName } from "../model/types";
 import { useStore } from "../store/store";
 import { THEMES } from "./themes";
+import { SyncSection } from "./SyncSection";
 
 /** Open a file picker and import. `merge` keeps existing thoughts; `replace` restores a backup. */
 export function pickImport(mode: "merge" | "replace") {
@@ -208,6 +209,8 @@ export function SettingsPanel() {
               </div>
             </div>
           </section>
+
+          <SyncSection />
 
           <section className="d-sec">
             <div className="label">Your data · stored only in this browser</div>

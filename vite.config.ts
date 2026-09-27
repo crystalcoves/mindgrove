@@ -33,6 +33,8 @@ export default defineConfig({
       },
     }),
   ],
+  // `npm run server` serves the API on :8080; the dev server forwards /api to it.
+  server: { proxy: { "/api": "http://localhost:8080" } },
   build: {
     // three.js lives in the lazily loaded Canopy chunk.
     chunkSizeWarningLimit: 1500,

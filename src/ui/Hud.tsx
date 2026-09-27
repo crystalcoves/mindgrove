@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { isUnplaced, isWilting } from "../model/tree";
 import { MOD } from "../lib/keys";
 import { useStore } from "../store/store";
+import { SyncChip } from "./SyncSection";
 
 export function Hud() {
   const view = useStore((s) => s.view);
@@ -109,6 +110,7 @@ export function Hud() {
         </button>
       </div>
       <div className="hud-actions">
+        <SyncChip />
         <button className="btn solid" onClick={() => st().openCapture(true)} title="Capture (/)">
           + CAPTURE
         </button>

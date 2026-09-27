@@ -45,11 +45,12 @@ Every thought has a status: `seed → growing → blooming → dormant → prune
 
 ## Your data
 
-Everything is stored locally in your browser (IndexedDB). No account and no server are needed, and it works offline once installed as a PWA.
+Everything is stored locally in your browser (IndexedDB), and it works offline once installed as a PWA.
 
+- **Sync across devices (optional):** go to Settings → Sync across devices → **Turn on sync**. Then enter the sync code on your other devices. Sync is **end-to-end encrypted**: the code never leaves your devices, and the server stores only AES-GCM ciphertext under an id derived from the code. Edits merge per thought (the newest wins), deletions carry over, and sync runs a few seconds after each change, when you return to the app, and once a minute. If you lose the code, nobody can read the server copy, but each device keeps its own full local copy.
 - **Export Markdown:** gives you a `.zip` with one file per limb plus `Seeds.md`. Each file is a nested list that any editor can read. Hidden comments keep ids and dates, so importing it back loses nothing.
 - **Export JSON:** a full backup.
-- **Import:** merges `.json`, a Mindgrove `.zip`, or plain `.md` files. Markdown you wrote by hand works too: `# Heading` becomes a limb and each bullet becomes a thought. **Restore backup** replaces everything.
+- **Import:** merges `.json`, a Mindgrove `.zip`, or plain `.md` files. Markdown you wrote by hand works too. **Restore backup** replaces everything.
 
 ## Development
 
@@ -62,7 +63,8 @@ npm test           # Vitest: store, layout stability, export round-trip, markdow
 npm run lint       # prettier --check + tsc
 npm run format     # prettier --write
 npm run build      # type-check + production build to dist/
-npm run preview    # serve the build
+npm run preview    # serve the build (no sync API)
+npm run server     # serve dist/ + the sync API on :8080 (data in ./data); `npm run dev` proxies /api to it
 ```
 
 Stack: Vite, React 19, TypeScript, Zustand (state), Dexie (IndexedDB), react-three-fiber, drei and @react-three/postprocessing (Canopy), vite-plugin-pwa, Vitest.
@@ -73,10 +75,12 @@ src/
   store/     Zustand store (write-behind persistence to Dexie) + first-run demo tree
   db/        Dexie schema
   io/        Markdown + JSON export/import, tiny store-only zip
+  sync/      end-to-end encrypted sync: crypto, merge (LWW + tombstones), engine
   grove/     outline view, visible-row model
   canopy/    seeded layout, holo shaders, instanced scene, projected labels
   ui/        HUD, detail panel, capture, palette, settings, hotkeys, themes
-  lib/       ids/PRNG, markdown renderer, fx particles, key helpers
+  lib/       ids/PRNG, markdown renderer, fx particles, voice, share target
+server/      Node server: static files + /api/sync (compare-and-swap blobs)
 ```
 
 Design notes:
@@ -90,9 +94,9 @@ Design notes:
 
 Mindgrove runs on Fly.io like the other projects. It's the app `mindgrove` in `jnb`, and it lives at https://mindgrove.fly.dev/.
 
-- `Dockerfile` builds the app with Node, then serves `dist/` with nginx on port 8080. `deploy/nginx.conf` sets caching: hashed assets are immutable, while the page, the service worker and the manifest always revalidate.
-- `fly.toml` runs one `shared-cpu-1x` / 256 MB machine. There is no volume, because all data lives in each user's browser. The machine stops when idle and starts again on the next request.
-- `.github/workflows/fly-deploy.yml` runs on every push to `main`. It checks formatting, runs the tests, builds, creates the Fly app if it doesn't exist yet, and runs `flyctl deploy`.
+- `Dockerfile` builds the app and runs `server/server.mjs`, a small server with no dependencies. It serves `dist/` (hashed assets are immutable; the page, service worker and manifest always revalidate) and stores encrypted sync blobs in `/data`.
+- `fly.toml` runs one `shared-cpu-1x` / 256 MB machine with a 1 GB volume (`mindgrove_data`). The machine stops when idle and starts again on the next request. It must stay on a single machine because the volume lives on it.
+- `.github/workflows/fly-deploy.yml` runs on every push to `main`. It checks formatting, runs the tests and builds. It then creates the Fly app and volume if they don't exist yet, runs `flyctl deploy`, and smoke-tests the live site and the sync API.
 
 One-time setup: create a deploy token with `fly tokens create org personal` (or `fly auth token`). Add it to the repository under **Settings → Secrets and variables → Actions** as `FLY_API_TOKEN`. Until the token exists, the workflow still builds and tests but skips the deploy.
 
@@ -102,8 +106,8 @@ Manual deploy from your machine: `fly deploy`.
 
 ## Roadmap
 
-- **v2:** time-lapse replay (growth rings), wilting reminders, vine suggestions
-- **v3:** voice capture, mobile share-target, optional sync
+- Done since v1: growth-rings replay, wilting reminders (Tend), vine suggestions, voice capture, share target, encrypted sync
+- Next ideas: sync conflict history, per-limb sharing, richer replay (vines and statuses over time)
 - AI placement suggestions are intentionally deferred.
 
 See [PLAN.md](PLAN.md) for the design brief.

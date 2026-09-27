@@ -1,9 +1,11 @@
-import { uid } from "../lib/id";
 import type { Limb, Link, Snapshot, Status, Thought } from "../model/types";
 
 type Node = [title: string, status: Status, kids?: Node[], extra?: { body?: string; tags?: string[]; age?: number }];
 
-/** A small starter tree so a first visit has something alive to explore. */
+/**
+ * A small starter tree so a first visit has something alive to explore.
+ * Fixed ids, so two devices that both start from the demo merge it into one when synced.
+ */
 export function demoSnapshot(ts: number): Snapshot {
   const limbs: Limb[] = [];
   const thoughts: Thought[] = [];
@@ -11,7 +13,7 @@ export function demoSnapshot(ts: number): Snapshot {
   const byTitle: Record<string, string> = {};
 
   const addLimb = (name: string, color: string) => {
-    const l: Limb = { id: uid(), name, color, order: limbs.length, createdAt: ts - 30 * 86400e3 };
+    const l: Limb = { id: `demo-limb-${limbs.length}`, name, color, order: limbs.length, createdAt: ts - 30 * 86400e3 };
     limbs.push(l);
     return l.id;
   };
@@ -20,7 +22,7 @@ export function demoSnapshot(ts: number): Snapshot {
     nodes.forEach(([title, status, kids, extra], order) => {
       const age = (extra?.age ?? 2) * 86400e3;
       const t: Thought = {
-        id: uid(),
+        id: `demo-${thoughts.length}`,
         parentId,
         limbId: parentId ? null : limbId,
         title,
@@ -138,7 +140,7 @@ export function demoSnapshot(ts: number): Snapshot {
   );
 
   const link = (a: string, b: string) => {
-    if (byTitle[a] && byTitle[b]) links.push({ id: uid(), from: byTitle[a], to: byTitle[b] });
+    if (byTitle[a] && byTitle[b]) links.push({ id: `demo-vine-${links.length}`, from: byTitle[a], to: byTitle[b] });
   };
   link("Tiny tools beat big systems", "Pick one feature for v1");
   link("A garden that grows from your notes", "How Mindgrove works");
