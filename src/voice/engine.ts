@@ -11,9 +11,14 @@ import type { WorkerIn, WorkerOut } from "./transcribe.worker";
  */
 
 export const MODELS = {
-  fast: { id: "onnx-community/whisper-tiny", label: "Fast", size: "~45 MB", note: "quickest, rougher" },
-  balanced: { id: "onnx-community/whisper-base", label: "Balanced", size: "~80 MB", note: "good for most notes" },
-  best: { id: "onnx-community/whisper-small", label: "Best", size: "~250 MB", note: "most accurate, slowest" },
+  fast: { id: "onnx-community/whisper-base", label: "Fast", size: "~80 MB", note: "quick, good for clear speech" },
+  balanced: { id: "onnx-community/whisper-small", label: "Balanced", size: "~250 MB", note: "noticeably more accurate — the default" },
+  best: {
+    id: "onnx-community/whisper-large-v3-turbo",
+    label: "Best",
+    size: "~500 MB",
+    note: "most accurate; wants a GPU (most recent phones and laptops)",
+  },
 } as const;
 export type ModelKey = keyof typeof MODELS;
 

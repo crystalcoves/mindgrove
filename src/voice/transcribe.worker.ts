@@ -35,13 +35,27 @@ export type WorkerOut =
 
 const post = (m: WorkerOut) => (self as unknown as DedicatedWorkerGlobalScope).postMessage(m);
 
-async function hasWebGPU(): Promise<boolean> {
+/** WebGPU availability, and whether the GPU can do half-precision maths (smaller, faster models). */
+async function gpuInfo(): Promise<{ ok: boolean; f16: boolean }> {
   try {
     const gpu = (navigator as any).gpu;
-    return !!(gpu && (await gpu.requestAdapter()));
+    const adapter = gpu && (await gpu.requestAdapter());
+    return { ok: !!adapter, f16: !!adapter?.features?.has?.("shader-f16") };
   } catch {
-    return false;
+    return { ok: false, f16: false };
   }
+}
+
+/**
+ * Which weight precision to download. Big encoders use 4-bit weights so the
+ * large model stays ~500 MB; smaller models keep more precision where the
+ * device can handle it.
+ */
+function dtypeFor(model: string, d: "webgpu" | "wasm", f16: boolean) {
+  const large = /large/.test(model);
+  if (large) return { encoder_model: d === "webgpu" && f16 ? "q4f16" : "q4", decoder_model_merged: "q4" };
+  if (d === "webgpu") return { encoder_model: f16 ? "fp16" : "fp32", decoder_model_merged: "q4" };
+  return "q8";
 }
 
 async function load(model: string) {
@@ -54,13 +68,14 @@ async function load(model: string) {
   const progress_callback = (p: any) => {
     if (p.status === "progress_total") post({ type: "loading", progress: p.progress, loaded: p.loaded, total: p.total });
   };
+  const gpu = await gpuInfo();
   const tryLoad = async (d: "webgpu" | "wasm") =>
     T.pipeline("automatic-speech-recognition", model, {
       device: d,
-      dtype: d === "webgpu" ? { encoder_model: "fp32", decoder_model_merged: "q4" } : "q8",
+      dtype: dtypeFor(model, d, gpu.f16),
       progress_callback,
     });
-  device = (await hasWebGPU()) ? "webgpu" : "wasm";
+  device = gpu.ok ? "webgpu" : "wasm";
   try {
     pipe = await tryLoad(device);
   } catch (e) {

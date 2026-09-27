@@ -19,7 +19,9 @@ await page.keyboard.press("Control+k");
 await page.keyboard.type("Transcribe a voice note");
 await page.keyboard.press("Enter");
 await page.waitForSelector(".v-drop");
-await page.click(".v-opts .seg button:has-text('Fast')");
+const tier = process.env.MODEL ?? "Fast";
+console.log("model tier:", tier);
+await page.click(`.v-opts .seg button:has-text('${tier}')`);
 await page.setInputFiles(".v-drop input[type=file]", file);
 let last = "";
 const timer = setInterval(async () => {
@@ -27,7 +29,7 @@ const timer = setInterval(async () => {
   if (s && s !== last) console.log(`[${Math.round((Date.now() - t0) / 1000)}s] ${(last = s)}`);
 }, 2000);
 try {
-  await page.waitForSelector(".v-parts, .v-error", { timeout: 9 * 60_000 });
+  await page.waitForSelector(".v-parts, .v-error", { timeout: 20 * 60_000 });
 } finally {
   clearInterval(timer);
   await page.screenshot({ path: "voice-e2e.png" });

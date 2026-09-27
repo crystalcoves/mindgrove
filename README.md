@@ -37,7 +37,7 @@ Every thought has a status: `seed → growing → blooming → dormant → prune
   - Drag rows to re-parent them. Drop on the top or bottom edge of a row to place before or after it, in the middle to nest under it, or on a limb or Seeds header to plant it there.
   - Search and filter by status, tag, limb, or wilting.
 - **Voice notes → thoughts:** drop an audio file (m4a, mp3, wav, ogg/opus, webm) anywhere in the app. You can also use the **Voice note file** button in the capture box, or the command palette entry *Transcribe a voice note*.
-  - Transcription runs **on your device** with Whisper (via transformers.js), so your audio is never uploaded. The model downloads once (Fast about 45 MB, Balanced about 80 MB, Best about 250 MB) and then works offline.
+  - Transcription runs **on your device** with Whisper (via transformers.js), so your audio is never uploaded. The model downloads once (Fast: whisper-base, about 80 MB; Balanced: whisper-small, about 250 MB; Best: whisper-large-v3-turbo, about 500 MB) and then works offline. Before transcribing, the audio is cleaned up: rumble is filtered out and loudness evened. Silent stretches are skipped, and any ~30-second piece that gets stuck repeating itself is transcribed again with stricter settings.
   - Long recordings are handled in pieces of about 30 seconds, cut at pauses. You get live progress, a time estimate and cancel, and you can minimise the panel while it works.
   - You then review the transcript as short timestamped parts. Rename them, join neighbouring parts, or tick the ones that deserve their own branch.
   - Planting creates one 🎙 voice-note thought that holds the full transcript under timestamp headings, folded in the detail panel. The parts you ticked become its follow-ups.

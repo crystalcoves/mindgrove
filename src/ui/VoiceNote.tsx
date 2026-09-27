@@ -5,7 +5,9 @@ import { cancelVoice, eta, MODELS, openVoice, resetVoice, transcribeFile, useVoi
 import { formatTime, mergeWithNext, previewAfterTitle, readingMinutes, transcriptMarkdown, type Paragraph } from "../voice/segment";
 
 const AUDIO_ACCEPT = "audio/*,.m4a,.mp3,.wav,.ogg,.opus,.webm,.aac,.flac,.amr";
-const PREFS_KEY = "mindgrove:voicePrefs";
+// v2: the tiers moved up a model each; old saved choices shouldn't silently
+// start a much bigger download, so everyone starts from the new default.
+const PREFS_KEY = "mindgrove:voicePrefs2";
 
 function loadPrefs(): { model: ModelKey; language: string } {
   try {
@@ -147,9 +149,9 @@ function Pick() {
           </label>
         </div>
         <small className="dim">
-          Transcribed on this device, so your audio is never uploaded. On a typical laptop a 20-minute note takes about 10 minutes on Fast,
-          20 on Balanced and much longer on Best (faster where the browser can use the graphics card). You can minimise this and keep
-          working.
+          Transcribed on this device, so your audio is never uploaded. On a phone or laptop that can use its graphics chip, Fast handles a
+          27-minute note in a couple of minutes, Balanced takes a few times longer, and Best longer again (much slower without a GPU). You
+          can minimise this and keep working.
         </small>
       </div>
     </>
