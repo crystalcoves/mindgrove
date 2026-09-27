@@ -29,7 +29,8 @@ jobs:
       - run: npm run build
       - name: Transcribe through the UI
         run: |
-          npx vite preview --port 4173 --strictPort &
+          # The real server: sends the isolation headers that enable multi-threading.
+          PORT=4173 DATA_DIR=/tmp/mg-data node server/server.mjs &
           sleep 3
           node e2e/voice.mjs
       - uses: actions/upload-artifact@v4

@@ -14,6 +14,7 @@ page.on("pageerror", (e) => console.log("[pageerror]", e.message));
 const t0 = Date.now();
 await page.goto(url);
 await page.waitForSelector(".row");
+console.log("crossOriginIsolated:", await page.evaluate(() => crossOriginIsolated), "cores:", await page.evaluate(() => navigator.hardwareConcurrency));
 await page.keyboard.press("Control+k");
 await page.keyboard.type("Transcribe a voice note");
 await page.keyboard.press("Enter");
