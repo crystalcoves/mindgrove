@@ -61,11 +61,15 @@ const fake = (): FakeTranscriber | undefined =>
 
 let worker: Worker | null = null;
 let job = 0;
+// The recording being transcribed, so it can be kept for playback once planted.
+let currentFile: File | null = null;
+export const voiceFile = () => currentFile;
 
 export const openVoice = (open = true) => useVoice.setState({ open });
 
 export function resetVoice() {
   cancelVoice();
+  currentFile = null;
   useVoice.setState({ ...initial, open: useVoice.getState().open });
 }
 
@@ -120,6 +124,7 @@ export async function transcribeFile(file: File, opts: { model: ModelKey; langua
   cancelVoice();
   const my = ++job;
   const alive = () => my === job;
+  currentFile = file;
   useVoice.setState({ ...initial, open: useVoice.getState().open, phase: "decoding", fileName: file.name, startedAt: Date.now() });
   try {
     const decoded = await decodeAudio(file);

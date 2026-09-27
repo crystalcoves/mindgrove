@@ -7,6 +7,7 @@ import { truncate, useStore } from "../store/store";
 import { THEMES } from "./themes";
 import { pickImport } from "./SettingsPanel";
 import { openVoice } from "../voice/engine";
+import { openReflect } from "./Reflect";
 
 interface Item {
   id: string;
@@ -123,6 +124,8 @@ function PaletteBox() {
         },
       },
       { id: "c-voice", group: "Actions", icon: "🎙", title: "Transcribe a voice note…", run: () => openVoice(true) },
+      { id: "c-reflect", group: "Actions", icon: "☼", title: "Reflect now…", run: () => openReflect("prompt") },
+      { id: "c-week", group: "Actions", icon: "↟", title: "What grew this week…", run: () => openReflect("week") },
       { id: "c-tend", group: "Actions", icon: "❦", title: "Tend wilting thoughts…", keys: "W", run: () => st().openTend(true) },
       { id: "c-wilt", group: "Filters", icon: "❦", title: "Show wilting thoughts", run: () => st().setFilters({ wilting: true }) },
       ...STATUSES.map((s) => ({

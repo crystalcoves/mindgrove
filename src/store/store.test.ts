@@ -164,3 +164,21 @@ describe("tidy on the store", () => {
     expect(s().tidyUp()).toBe(false);
   });
 });
+
+describe("restoreMissing", () => {
+  it("brings back deleted thoughts and their follow-ups without touching existing ones", () => {
+    const limb = s().addLimb("Work");
+    const a = s().addThought({ title: "Plan", limbId: limb.id });
+    const b = s().addThought({ title: "Step", parentId: a.id });
+    const backup = s().snapshot();
+    s().update(a.id, { title: "Plan (edited)" });
+    s().remove(b.id, { silent: true });
+    expect(s().tombstones[b.id]).toBeDefined();
+    const n = s().restoreMissing(backup);
+    expect(n).toBe(1);
+    expect(s().thoughts[b.id].parentId).toBe(a.id);
+    expect(s().thoughts[a.id].title).toBe("Plan (edited)");
+    expect(s().tombstones[b.id]).toBeUndefined();
+    expect(s().restoreMissing(backup)).toBe(0);
+  });
+});

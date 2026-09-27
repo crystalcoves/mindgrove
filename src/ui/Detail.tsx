@@ -7,7 +7,8 @@ import { STATUSES, STATUS_META, type Thought } from "../model/types";
 import { useStore } from "../store/store";
 import { STATUS_COLORS } from "./themes";
 import { suggestVines } from "../model/suggest";
-import { readingMinutes } from "../voice/segment";
+import { formatTime, parseTime, readingMinutes } from "../voice/segment";
+import { audioStore } from "../db/db";
 
 export function Detail({ floating }: { floating?: boolean }) {
   const id = useStore((s) => s.selectedId);
@@ -50,6 +51,7 @@ function DetailBody({ t }: { t: Thought }) {
   );
   const vines = Object.values(links).filter((l) => l.from === t.id || l.to === t.id);
   const wilting = isWilting(t, Date.now(), wiltWeeks);
+  const audio = useVoiceAudio(t);
 
   return (
     <div className="detail-scroll">
@@ -134,7 +136,8 @@ function DetailBody({ t }: { t: Thought }) {
       </section>
 
       <TagsField t={t} />
-      <BodyField t={t} />
+      <VoicePlayer key={t.id} t={t} audio={audio} />
+      <BodyField t={t} seek={audio.seek} />
 
       <section className="d-sec">
         <div className="label">
@@ -321,7 +324,61 @@ function TagsField({ t }: { t: Thought }) {
   );
 }
 
-function BodyField({ t }: { t: Thought }) {
+/** Where a voice note's recording is played from: its own saved audio, or (for a part planted as a branch) its parent's. */
+function useVoiceAudio(t: Thought) {
+  const ownerId = t.tags.includes("voice") ? (/^\*Voice note ·/.test(t.body) ? t.id : t.parentId) : null;
+  const [url, setUrl] = useState<string | null>(null);
+  const el = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    setUrl(null);
+    if (!ownerId) return;
+    let objectUrl: string | null = null;
+    let live = true;
+    void audioStore.get(ownerId).then((a) => {
+      if (!a || !live) return;
+      objectUrl = URL.createObjectURL(a.blob);
+      setUrl(objectUrl);
+    });
+    return () => {
+      live = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [ownerId]);
+  const seek = url
+    ? (sec: number) => {
+        const a = el.current;
+        if (!a) return;
+        a.currentTime = sec;
+        void a.play().catch(() => {});
+      }
+    : null;
+  return { url, el, seek };
+}
+
+type VoiceAudioState = ReturnType<typeof useVoiceAudio>;
+
+function VoicePlayer({ t, audio }: { t: Thought; audio: VoiceAudioState }) {
+  if (!audio.url) return null;
+  // A part planted as a branch remembers where it came from: "…at 12:05".
+  const from = /at (\d+:\d{2}(?::\d{2})?)\*?\s*$/.exec(t.body)?.[1];
+  const start = from ? parseTime(from) : null;
+  return (
+    <section className="d-sec voice-play">
+      <div className="label">
+        Recording
+        {start != null && (
+          <button className="btn small solid" onClick={() => audio.seek?.(start)}>
+            ▶ Play from {formatTime(start)}
+          </button>
+        )}
+      </div>
+      <audio ref={audio.el} src={audio.url} controls preload="metadata" />
+      {start == null && <small className="dim">Tap a timestamp in the transcript to jump there.</small>}
+    </section>
+  );
+}
+
+function BodyField({ t, seek }: { t: Thought; seek?: ((sec: number) => void) | null }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(t.body);
   useEffect(() => {
@@ -361,8 +418,14 @@ function BodyField({ t }: { t: Thought }) {
       ) : (
         <>
           <div
-            className={`md${long && !expanded ? " folded" : ""}`}
-            onClick={(e) => !long && (e.target as HTMLElement).tagName !== "A" && setEditing(true)}
+            className={`md${long && !expanded ? " folded" : ""}${seek ? " seekable" : ""}`}
+            onClick={(e) => {
+              const el = e.target as HTMLElement;
+              // Transcript timestamps play the recording from there.
+              const at = seek && el.tagName === "H3" ? parseTime(el.textContent ?? "") : null;
+              if (at != null) return seek!(at);
+              if (!long && el.tagName !== "A") setEditing(true);
+            }}
             dangerouslySetInnerHTML={{ __html: html }}
           />
           {long && (

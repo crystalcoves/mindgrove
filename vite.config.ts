@@ -21,14 +21,28 @@ export default defineConfig({
         display: "standalone",
         start_url: base,
         scope: base,
-        // Android/ChromeOS: "Share → Mindgrove" drops the shared text in as a seed.
-        share_target: { action: base, method: "GET", params: { title: "title", text: "text", url: "url" } },
+        // Android/ChromeOS: "Share → Mindgrove" drops shared text in as a seed, and
+        // transcribes a shared voice note (e.g. from WhatsApp or a recorder app).
+        // public/share-target-sw.js receives the POST.
+        share_target: {
+          action: `${base}share-target`,
+          method: "POST",
+          enctype: "multipart/form-data",
+          params: {
+            title: "title",
+            text: "text",
+            url: "url",
+            files: [{ name: "audio", accept: ["audio/*", ".m4a", ".mp3", ".wav", ".ogg", ".opus", ".aac", ".amr", ".webm", ".flac"] }],
+          },
+        },
         icons: [
           { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
         ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+        globIgnores: ["share-target-sw.js"],
+        importScripts: ["share-target-sw.js"],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // The speech-to-text library (voice notes) is fetched on first use; keep it for offline.
         runtimeCaching: [

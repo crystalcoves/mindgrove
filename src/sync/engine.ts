@@ -153,3 +153,25 @@ export async function disableSync() {
   await persist.setKV("sync", null);
   useSync.setState({ status: "off", code: null, error: null });
 }
+
+export interface Backup {
+  at: number;
+  size: number;
+}
+
+/** Server-kept snapshots of the synced grove (newest first), still encrypted. */
+export async function listBackups(): Promise<Backup[]> {
+  if (!keys) return [];
+  const r = await fetch(`${API}${keys.id}/history`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`Server said ${r.status}`);
+  return ((await r.json()) as { items: Backup[] }).items;
+}
+
+/** Download and decrypt one snapshot. */
+export async function loadBackup(at: number): Promise<SyncDoc> {
+  if (!keys) throw new Error("Sync is off");
+  const r = await fetch(`${API}${keys.id}/history/${at}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`Server said ${r.status}`);
+  const body = (await r.json()) as { data: string };
+  return decryptJSON<SyncDoc>(keys.key, body.data);
+}

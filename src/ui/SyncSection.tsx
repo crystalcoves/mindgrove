@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { downloadBackup } from "../io/files";
 import { relTime } from "../lib/keys";
-import { disableSync, enableSync, syncNow, useSync } from "../sync/engine";
+import { disableSync, enableSync, listBackups, loadBackup, syncNow, useSync, type Backup } from "../sync/engine";
 import { useStore } from "../store/store";
 
 const LABEL = { off: "Off", syncing: "Syncing…", synced: "Synced", offline: "Offline — will retry", error: "Error" } as const;
@@ -105,6 +106,7 @@ export function SyncSection() {
             To add another device, open Mindgrove on it, go to Settings → Sync, and enter this code. Keep the code private: anyone who has
             it can read and change your grove.
           </small>
+          <BackupHistory />
           <div>
             <button
               className="btn danger small"
@@ -134,5 +136,90 @@ export function SyncChip() {
     >
       {status === "syncing" ? "⟳" : "☁"}
     </button>
+  );
+}
+
+const when = (at: number) =>
+  new Date(at).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+/** Encrypted snapshots the server keeps (every ~6 h, 30 days): bring back what's missing, or download one. */
+function BackupHistory() {
+  const [items, setItems] = useState<Backup[] | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
+  const toast = (t: string) => useStore.getState().toast(t);
+
+  const open = async () => {
+    try {
+      setItems(await listBackups());
+    } catch (e) {
+      toast(`Couldn't load backups: ${(e as Error).message}`);
+    }
+  };
+  const act = async (at: number, what: "restore" | "download") => {
+    setBusy(at);
+    try {
+      const doc = await loadBackup(at);
+      const st = useStore.getState();
+      if (what === "download") {
+        downloadBackup({ thoughts: doc.thoughts, limbs: doc.limbs, links: doc.links }, st.settings);
+        return;
+      }
+      const missing = doc.thoughts.filter((t) => !st.thoughts[t.id]).length;
+      if (!missing) return toast("Nothing missing: everything in that backup is still in your grove");
+      if (!confirm(`Bring back ${missing} thought${missing > 1 ? "s" : ""} from ${when(at)}? Nothing you have now is changed.`)) return;
+      const n = st.restoreMissing(doc);
+      toast(`Brought back ${n} thought${n > 1 ? "s" : ""}`);
+    } catch (e) {
+      toast(`Backup failed: ${(e as Error).message}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!items)
+    return (
+      <div className="sync-row">
+        <button className="btn ghost small" onClick={() => void open()}>
+          ⟲ Backup history
+        </button>
+        <small className="dim">The server keeps an encrypted copy every ~6 hours for 30 days.</small>
+      </div>
+    );
+  return (
+    <div className="backups">
+      <div className="label">Backup history</div>
+      {items.length === 0 ? (
+        <small className="dim">No backups yet: the first one is saved on the next sync.</small>
+      ) : (
+        <ul>
+          {items.map((b) => (
+            <li key={b.at}>
+              <span className="mono">{when(b.at)}</span>
+              <span className="dim mono">{relTime(b.at)} ago</span>
+              <span style={{ flex: 1 }} />
+              <button
+                className="btn small"
+                disabled={busy !== null}
+                onClick={() => void act(b.at, "restore")}
+                title="Adds back anything deleted since; changes nothing else"
+              >
+                Bring back missing
+              </button>
+              <button
+                className="btn ghost small"
+                disabled={busy !== null}
+                onClick={() => void act(b.at, "download")}
+                title="Save it as a JSON backup"
+              >
+                ⤓
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <small className="dim">
+        “Bring back missing” only adds thoughts you've deleted since then. To roll everything back, download it and use Restore backup.
+      </small>
+    </div>
   );
 }

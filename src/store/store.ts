@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reducedMotion: typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches,
   particles: "high",
   wiltWeeks: 3,
+  reflectDaily: true,
 };
 
 export const LIMB_COLORS = ["#4fe3ff", "#ffb020", "#b07bff", "#5dffa8", "#ff6fae", "#ffe14f", "#6f9bff", "#ff8a4f"];
@@ -107,6 +108,8 @@ interface Actions {
   /** Merge duplicates (same-name limbs, identical sibling thoughts); true if anything changed. */
   tidyUp(): boolean;
   merge(s: Snapshot): void;
+  /** Bring back what `s` has and this grove doesn't (e.g. from a backup); returns how many thoughts came back. */
+  restoreMissing(s: Snapshot): number;
   snapshot(): Snapshot;
 
   setSettings(patch: Partial<Settings>): void;
@@ -592,6 +595,34 @@ export const useStore = create<Store>()((set, get) => {
       db.putThoughts(s.thoughts);
       db.putLimbs(s.limbs);
       db.putLinks(s.links);
+    },
+
+    restoreMissing(s) {
+      const cur = get();
+      const ts = now();
+      // Newer than any tombstone, so the restored records also sync back to other devices.
+      const limbs = s.limbs.filter((l) => !cur.limbs[l.id]).map((l) => ({ ...l, updatedAt: ts }));
+      const limbIds = new Set([...Object.keys(cur.limbs), ...limbs.map((l) => l.id)]);
+      const missing = s.thoughts.filter((t) => !cur.thoughts[t.id]);
+      const ids = new Set([...Object.keys(cur.thoughts), ...missing.map((t) => t.id)]);
+      const thoughts = missing.map((t) => ({
+        ...t,
+        parentId: t.parentId && ids.has(t.parentId) ? t.parentId : null,
+        limbId: t.parentId && ids.has(t.parentId) ? null : t.limbId && limbIds.has(t.limbId) ? t.limbId : null,
+        updatedAt: ts,
+      }));
+      const links = s.links.filter((l) => !cur.links[l.id] && ids.has(l.from) && ids.has(l.to)).map((l) => ({ ...l, createdAt: ts }));
+      unbury([...limbs, ...thoughts, ...links].map((r) => r.id));
+      if (limbs.length) {
+        set((st) => ({ limbs: { ...st.limbs, ...Object.fromEntries(limbs.map((l) => [l.id, l])) } }));
+        db.putLimbs(limbs);
+      }
+      putThoughts(thoughts);
+      if (links.length) {
+        set((st) => ({ links: { ...st.links, ...Object.fromEntries(links.map((l) => [l.id, l])) } }));
+        db.putLinks(links);
+      }
+      return thoughts.length;
     },
 
     snapshot() {

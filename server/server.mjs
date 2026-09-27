@@ -3,7 +3,7 @@
 // derived from their sync code plus AES-GCM ciphertext.
 import { createServer as httpServer } from "node:http";
 import { createReadStream } from "node:fs";
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -11,6 +11,25 @@ import { gzipSync } from "node:zlib";
 const MAX_BODY = 8 * 1024 * 1024;
 const ID_RE = /^[0-9a-f]{64}$/;
 const RATE = { windowMs: 60_000, max: 120 };
+const HOUR = 3600_000;
+const DAY = 24 * HOUR;
+// Backup history: a snapshot at most every 6 hours; everything from the last
+// two days is kept, then one per day, for 30 days.
+export const HISTORY = { every: 6 * HOUR, keepAll: 2 * DAY, maxAge: 30 * DAY };
+
+/** Which snapshot times (ms) to delete: older than 30 days, or not the newest of its day once past 2 days. */
+export function prunable(times, now = Date.now()) {
+  const drop = [];
+  const days = new Set();
+  for (const at of [...times].sort((a, b) => b - a)) {
+    const age = now - at;
+    const day = Math.floor(at / DAY);
+    if (age > HISTORY.maxAge) drop.push(at);
+    else if (age > HISTORY.keepAll && days.has(day)) drop.push(at);
+    days.add(day);
+  }
+  return drop;
+}
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -70,7 +89,50 @@ export function createServer({ distDir, dataDir }) {
       req.on("error", fail);
     });
 
+  const historyRoot = join(resolve(dataDir), "history");
   const file = (id) => join(syncDir, `${id}.json`);
+  const historyDir = (id) => join(historyRoot, id);
+  const snapshots = async (id) =>
+    (await readdir(historyDir(id)).catch(() => []))
+      .map((f) => /^(\d+)\.json$/.exec(f)?.[1])
+      .filter(Boolean)
+      .map(Number)
+      .sort((a, b) => b - a);
+
+  // Keep a copy of the (still encrypted) blob now and then, so a bad edit or
+  // deletion can be rolled back. Never fails the write it follows.
+  const snapshot = async (id, doc) => {
+    try {
+      const times = await snapshots(id);
+      const now = Date.now();
+      if (times.length && now - times[0] < HISTORY.every) return;
+      await mkdir(historyDir(id), { recursive: true });
+      await writeFile(join(historyDir(id), `${now}.json`), JSON.stringify(doc));
+      for (const at of prunable([now, ...times], now)) await unlink(join(historyDir(id), `${at}.json`)).catch(() => {});
+    } catch (e) {
+      console.error("history snapshot failed", e);
+    }
+  };
+
+  async function history(req, res, id, at) {
+    if (!ID_RE.test(id)) return send(res, 400, { error: "bad id" });
+    if (req.method !== "GET") return send(res, 405, { error: "method" }, { Allow: "GET" });
+    if (at === undefined) {
+      const items = [];
+      for (const t of await snapshots(id)) {
+        const info = await stat(join(historyDir(id), `${t}.json`)).catch(() => null);
+        if (info) items.push({ at: t, size: info.size });
+      }
+      return send(res, 200, { items });
+    }
+    if (!/^\d{1,16}$/.test(at)) return send(res, 400, { error: "bad time" });
+    try {
+      return send(res, 200, JSON.parse(await readFile(join(historyDir(id), `${at}.json`), "utf8")));
+    } catch (e) {
+      if (e.code === "ENOENT") return send(res, 404, { error: "not found" });
+      throw e;
+    }
+  }
   const load = async (id) => {
     try {
       return JSON.parse(await readFile(file(id), "utf8"));
@@ -113,6 +175,7 @@ export function createServer({ distDir, dataDir }) {
         const tmp = `${file(id)}.${process.pid}.${Date.now()}.tmp`;
         await writeFile(tmp, JSON.stringify(doc));
         await rename(tmp, file(id));
+        await snapshot(id, doc);
         return send(res, 200, { rev: doc.rev });
       });
     }
@@ -168,7 +231,15 @@ export function createServer({ distDir, dataDir }) {
       if (url.pathname.startsWith("/api/")) {
         if (limited(req)) return send(res, 429, { error: "slow down" }, { "Retry-After": "30" });
         const m = /^\/api\/sync\/([^/]+)$/.exec(url.pathname);
-        return m ? await sync(req, res, m[1]) : send(res, 404, { error: "not found" });
+        if (m) return await sync(req, res, m[1]);
+        const h = /^\/api\/sync\/([^/]+)\/history(?:\/([^/]+))?$/.exec(url.pathname);
+        return h ? await history(req, res, h[1], h[2]) : send(res, 404, { error: "not found" });
+      }
+      // Shared files are caught by the service worker; if it isn't running yet, just open the app.
+      if (req.method === "POST" && url.pathname === "/share-target") {
+        req.resume();
+        res.writeHead(303, { Location: "/?share=failed" });
+        return res.end();
       }
       if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "method");
       return await serveStatic(req, res, url.pathname);

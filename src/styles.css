@@ -1779,6 +1779,30 @@ select.input {
   color: var(--primary);
   user-select: all;
 }
+.backups {
+  display: grid;
+  gap: 6px;
+}
+.backups ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.backups li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.backups li + li {
+  border-top: 1px solid var(--line);
+}
 .sync-dot {
   width: 9px;
   height: 9px;
@@ -2080,5 +2104,104 @@ select.input {
   }
   .voice-pill {
     bottom: 86px;
+  }
+}
+
+/* ---- Voice-note playback -------------------------------------------------- */
+.voice-play audio {
+  width: 100%;
+  height: 36px;
+}
+.md.seekable h3 {
+  cursor: pointer;
+  color: var(--accent);
+}
+.md.seekable h3::before {
+  content: "▶ ";
+  font-size: 0.8em;
+}
+.md.seekable h3:hover {
+  text-decoration: underline;
+}
+
+/* ---- Reflection ----------------------------------------------------------- */
+.reflect {
+  max-width: 560px;
+}
+.reflect-q {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.4;
+  color: var(--primary);
+}
+.reflect-a {
+  width: 100%;
+  resize: vertical;
+  min-height: 96px;
+  font: inherit;
+}
+.reflect-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.week-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.week-stat {
+  display: grid;
+  justify-items: center;
+  padding: 10px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.week-stat b {
+  font-size: 22px;
+  color: var(--primary);
+}
+.week-stat small {
+  color: var(--mute);
+  font-size: 11px;
+}
+.week-limbs {
+  display: grid;
+  gap: 6px;
+}
+.week-limb {
+  display: grid;
+  grid-template-columns: 110px 1fr 32px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.week-limb span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.week-limb i {
+  height: 6px;
+  border-radius: 3px;
+  min-width: 4px;
+  opacity: 0.85;
+}
+.week-limb b {
+  text-align: right;
+}
+@media (max-width: 520px) {
+  .week-stats {
+    grid-template-columns: repeat(2, 1fr);
   }
 }

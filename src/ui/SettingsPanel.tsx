@@ -5,6 +5,8 @@ import type { ParticleLevel, ThemeName } from "../model/types";
 import { useStore } from "../store/store";
 import { THEMES } from "./themes";
 import { SyncSection } from "./SyncSection";
+import { audioStore } from "../db/db";
+import { useEffect, useState } from "react";
 
 /** Open a file picker and import. `merge` keeps existing thoughts; `replace` restores a backup. */
 export function pickImport(mode: "merge" | "replace") {
@@ -135,6 +137,17 @@ export function SettingsPanel() {
               </label>
               <label className="field">
                 <span>
+                  Daily reflection<small>One question a day when you open the app</small>
+                </span>
+                <button
+                  className={`toggle${settings.reflectDaily ? " on" : ""}`}
+                  role="switch"
+                  aria-checked={settings.reflectDaily}
+                  onClick={() => st().setSettings({ reflectDaily: !settings.reflectDaily })}
+                />
+              </label>
+              <label className="field">
+                <span>
                   Wilt after<small>Weeks untouched before a thought fades</small>
                 </span>
                 <select
@@ -231,6 +244,7 @@ export function SettingsPanel() {
             <small className="dim">
               Markdown export writes one file per limb plus Seeds.md — readable in any editor, and importable back without loss.
             </small>
+            <SavedAudio />
           </section>
 
           <section className="d-sec">
@@ -250,6 +264,32 @@ export function SettingsPanel() {
           </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Voice-note recordings kept on this device for playback. */
+function SavedAudio() {
+  const [usage, setUsage] = useState<{ bytes: number; count: number } | null>(null);
+  useEffect(() => {
+    void audioStore.usage().then(setUsage, () => setUsage(null));
+  }, []);
+  if (!usage?.count) return null;
+  return (
+    <div className="sync-row">
+      <small className="dim">
+        {usage.count} voice-note recording{usage.count > 1 ? "s" : ""} kept on this device for playback ·{" "}
+        {(usage.bytes / 1024 / 1024).toFixed(1)} MB (not synced or exported)
+      </small>
+      <button
+        className="btn ghost small"
+        onClick={() =>
+          confirm("Delete the saved recordings? Transcripts stay; only playback goes.") &&
+          void audioStore.clear().then(() => setUsage({ bytes: 0, count: 0 }))
+        }
+      >
+        Delete recordings
+      </button>
     </div>
   );
 }

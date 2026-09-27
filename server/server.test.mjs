@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createServer } from "./server.mjs";
+import { createServer, prunable } from "./server.mjs";
 
 let base, server, dir;
 const id = "a".repeat(64);
@@ -64,5 +64,36 @@ describe("server", () => {
     expect((await put(-1, "x")).status).toBe(400);
     const bad = await fetch(`${base}/api/sync/${id}`, { method: "PUT", body: "{" });
     expect(bad.status).toBe(400);
+  });
+
+  it("keeps a backup snapshot of the blob and serves the history", async () => {
+    const who = "c".repeat(64);
+    await put(0, "first", who);
+    await put(1, "second", who); // within 6 hours of the first: no new snapshot
+    const list = await (await fetch(`${base}/api/sync/${who}/history`)).json();
+    expect(list.items).toHaveLength(1);
+    const snap = await (await fetch(`${base}/api/sync/${who}/history/${list.items[0].at}`)).json();
+    expect(snap).toMatchObject({ rev: 1, data: "first" });
+    expect((await fetch(`${base}/api/sync/${who}/history/123`)).status).toBe(404);
+    expect((await fetch(`${base}/api/sync/${who}/history/..%2f..`)).status).toBe(400);
+    expect((await fetch(`${base}/api/sync/${"d".repeat(64)}/history`).then((r) => r.json())).items).toEqual([]);
+  });
+
+  it("sends a share-target POST without a service worker back to the app", async () => {
+    const r = await fetch(`${base}/share-target`, { method: "POST", body: "x", redirect: "manual" });
+    expect(r.status).toBe(303);
+  });
+});
+
+describe("history pruning", () => {
+  const H = 3600_000;
+  const D = 24 * H;
+  const now = 100 * D + 12 * H;
+  it("keeps the last two days, then the newest per day, for 30 days", () => {
+    const recent = [now - H, now - 7 * H, now - 30 * H];
+    const olderSameDay = [now - 5 * D, now - 5 * D - H];
+    const ancient = [now - 31 * D];
+    const drop = prunable([...recent, ...olderSameDay, ...ancient], now);
+    expect(drop.sort()).toEqual([now - 31 * D, now - 5 * D - H].sort());
   });
 });

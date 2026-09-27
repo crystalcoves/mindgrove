@@ -2,6 +2,14 @@ import Dexie, { type Table } from "dexie";
 import type { Limb, Link, Settings, Snapshot, Thought } from "../model/types";
 import { notifyChange } from "./notify";
 
+/** A voice note's original recording, kept on this device only (never synced). Keyed by the voice-note thought's id. */
+export interface VoiceAudio {
+  id: string;
+  blob: Blob;
+  name: string;
+  savedAt: number;
+}
+
 interface KV {
   key: string;
   value: unknown;
@@ -12,6 +20,7 @@ class GroveDB extends Dexie {
   limbs!: Table<Limb, string>;
   links!: Table<Link, string>;
   kv!: Table<KV, string>;
+  audio!: Table<VoiceAudio, string>;
 
   constructor(name = "mindgrove") {
     super(name);
@@ -21,6 +30,7 @@ class GroveDB extends Dexie {
       links: "id, from, to",
       kv: "key",
     });
+    this.version(2).stores({ audio: "id" });
   }
 }
 
@@ -75,3 +85,25 @@ export const persist = {
 function report(err: unknown) {
   console.error("[mindgrove] storage error", err);
 }
+
+/* Voice-note audio. Failures only lose playback, never thoughts, so they're quiet. */
+export const audioStore = {
+  save: (id: string, blob: Blob, name: string) => db.audio.put({ id, blob, name, savedAt: Date.now() }).catch(report),
+  get: (id: string) => db.audio.get(id).catch(() => undefined),
+  /** Total bytes and count of saved recordings. */
+  usage: async () => {
+    let bytes = 0;
+    let count = 0;
+    await db.audio.each((a) => {
+      bytes += a.blob.size;
+      count++;
+    });
+    return { bytes, count };
+  },
+  clear: () => db.audio.clear().catch(report),
+  /** Drop recordings whose voice note is gone (the day's grace keeps an undo or another tab safe). */
+  prune: async (liveIds: Set<string>) => {
+    const dead = (await db.audio.toArray().catch(() => [])).filter((a) => !liveIds.has(a.id) && Date.now() - a.savedAt > 86400e3);
+    if (dead.length) await db.audio.bulkDelete(dead.map((a) => a.id)).catch(report);
+  },
+};

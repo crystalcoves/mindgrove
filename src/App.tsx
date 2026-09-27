@@ -7,12 +7,14 @@ import { Hud } from "./ui/Hud";
 import { Palette } from "./ui/Palette";
 import { SettingsPanel } from "./ui/SettingsPanel";
 import { Tend } from "./ui/Tend";
+import { Reflect } from "./ui/Reflect";
 import { VoiceNote, isAudioFile, startVoiceNote } from "./ui/VoiceNote";
 import { THEMES } from "./ui/themes";
 import { useHotkeys } from "./ui/useHotkeys";
 import { shareToText } from "./lib/share";
 import { bootSync } from "./sync/engine";
 import { watchOtherTabs } from "./sync/tabs";
+import { audioStore } from "./db/db";
 
 // three.js only loads when the canopy is first opened, keeping the Grove instant.
 const Canopy = lazy(() => import("./canopy/Canopy"));
@@ -31,6 +33,7 @@ export default function App() {
       .then(() => {
         receiveShare();
         watchOtherTabs();
+        void audioStore.prune(new Set(Object.keys(useStore.getState().thoughts)));
         void bootSync();
       });
   }, []);
@@ -82,6 +85,7 @@ export default function App() {
       <Palette />
       <SettingsPanel />
       <Tend />
+      <Reflect />
       <VoiceNote />
       <Toasts />
     </div>
@@ -113,13 +117,43 @@ function Toasts() {
   );
 }
 
-/** Handle "Share → Mindgrove" (PWA share target): drop it in as a seed, then clean the URL. */
+/**
+ * Handle "Share → Mindgrove" (PWA share target). A shared voice note is waiting
+ * in a cache (put there by the service worker) and gets transcribed; shared
+ * text drops in as a seed. Then clean the URL so a reload doesn't repeat it.
+ */
 function receiveShare() {
   const params = new URLSearchParams(location.search);
-  const text = shareToText(params);
-  if (!text) return;
+  if (!["title", "text", "url", "share", "share-audio"].some((k) => params.has(k))) return;
   history.replaceState(null, "", location.pathname);
   const st = useStore.getState();
+  if (params.get("share") === "failed") {
+    st.toast("That share didn't come through: try sharing it again");
+    return;
+  }
+  if (params.has("share-audio")) {
+    void takeSharedAudio().then((file) =>
+      file ? startVoiceNote(file) : st.toast("That voice note didn't come through: try sharing it again"),
+    );
+    return; // any text alongside a shared file is just its name
+  }
+  const text = shareToText(params);
+  if (!text) return;
   const id = st.capture(text);
   if (id) st.toast("Shared into your seeds", { label: "Open", run: () => useStore.getState().select(id, { open: true }) });
+}
+
+async function takeSharedAudio(): Promise<File | null> {
+  try {
+    const cache = await caches.open("mindgrove-shared");
+    const key = `${import.meta.env.BASE_URL}__shared-audio`;
+    const res = await cache.match(key);
+    if (!res) return null;
+    const blob = await res.blob();
+    await cache.delete(key);
+    const name = decodeURIComponent(res.headers.get("X-File-Name") ?? "") || "Shared voice note";
+    return new File([blob], name, { type: blob.type || res.headers.get("Content-Type") || "" });
+  } catch {
+    return null;
+  }
 }

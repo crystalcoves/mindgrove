@@ -44,6 +44,8 @@ export interface Settings {
   particles: ParticleLevel;
   /** A thought wilts after this many weeks untouched. */
   wiltWeeks: number;
+  /** Offer a reflection question once a day when the app opens. */
+  reflectDaily: boolean;
 }
 
 export interface Snapshot {

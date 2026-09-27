@@ -181,3 +181,24 @@ export function previewAfterTitle(text: string, title: string): string {
   }
   return text;
 }
+
+/**
+ * A readable default title from a recording's file name. Machine names like
+ * WhatsApp's "PTT-20260927-WA0003.opus" or "Recording 12.m4a" become "Voice note · 27 Sep".
+ */
+export function noteTitleFrom(fileName: string, when = new Date()): string {
+  const base = fileName
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/[_-]+/g, " ")
+    .trim();
+  // Only recorder boilerplate and numbers? Then the name says nothing.
+  const leftover = base.replace(/\b(ptt|aud|audio|voice|note|rec|recording|new|memo|wa\d*)\b|\d+/gi, "").trim();
+  if (leftover) return base;
+  return `Voice note · ${when.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
+}
+
+/** "1:05" or "1:02:03" → seconds; null if it isn't a timestamp. */
+export function parseTime(s: string): number | null {
+  const m = /^\s*(?:(\d+):)?(\d{1,2}):(\d{2})\s*$/.exec(s);
+  return m ? Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3]) : null;
+}

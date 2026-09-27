@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  noteTitleFrom,
+  parseTime,
   previewAfterTitle,
   collapseLoops,
   cleanChunks,
@@ -132,5 +134,26 @@ describe("decoding loops and stock phrases", () => {
       { start: 6, end: 8, text: "Thanks for listening!" },
     ]);
     expect(out.map((c) => c.text)).toEqual(["Remember to water the plants."]);
+  });
+});
+
+describe("noteTitleFrom", () => {
+  const when = new Date(2026, 8, 27);
+  it("keeps meaningful names and replaces machine ones", () => {
+    expect(noteTitleFrom("Ideas for the garden.m4a", when)).toBe("Ideas for the garden");
+    expect(noteTitleFrom("PTT-20260927-WA0003.opus", when)).toMatch(/^Voice note · /);
+    expect(noteTitleFrom("AUD-20260927-WA0001.m4a", when)).toMatch(/^Voice note · /);
+    expect(noteTitleFrom("Recording 12.m4a", when)).toMatch(/^Voice note · /);
+    expect(noteTitleFrom("New Recording 3.m4a", when)).toMatch(/^Voice note · /);
+    expect(noteTitleFrom("", when)).toMatch(/^Voice note · /);
+  });
+});
+
+describe("parseTime", () => {
+  it("reads timestamps back, matching formatTime", () => {
+    expect(parseTime("0:25")).toBe(25);
+    expect(parseTime("12:05")).toBe(725);
+    expect(parseTime(formatTime(3723))).toBe(3723);
+    expect(parseTime("Ideas")).toBeNull();
   });
 });

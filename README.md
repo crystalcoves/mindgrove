@@ -28,7 +28,7 @@ Every thought has a status: `seed → growing → blooming → dormant → prune
 
 ## Using it
 
-- **Capture:** press `/` (or `Ctrl/⌘+Space`) anywhere, type, then press `Enter`. Tap **Voice** to speak instead (Chrome, Edge, Safari). On Android you can also use **Share → Mindgrove** from any app to drop a seed. Add `#tags` inline. `Shift+Enter` keeps the box open so you can dump several thoughts in a row. `Tab` files the thought as a follow-up of the one you have selected. On a phone, use the ＋ button.
+- **Capture:** press `/` (or `Ctrl/⌘+Space`) anywhere, type, then press `Enter`. Tap **Voice** to speak instead (Chrome, Edge, Safari). On Android you can also use **Share → Mindgrove** from any app to drop a seed. Sharing an audio file (a WhatsApp voice note, or a recording from your phone's recorder app) transcribes it straight away. Add `#tags` inline. `Shift+Enter` keeps the box open so you can dump several thoughts in a row. `Tab` files the thought as a follow-up of the one you have selected. On a phone, use the ＋ button.
 - **Grove:** a keyboard-first outline, grouped by limb.
   - `↑ ↓` move · `← →` fold, unfold, or jump to parent · `Enter` rename · `Space` open details
   - `O` new thought below · `N` new follow-up. Once you're editing, `Enter` starts the next one, so you can write a whole list without touching the mouse.
@@ -41,6 +41,10 @@ Every thought has a status: `seed → growing → blooming → dormant → prune
   - Long recordings are handled in pieces of about 30 seconds, cut at pauses. You get live progress, a time estimate and cancel, and you can minimise the panel while it works.
   - You then review the transcript as short timestamped parts. Rename them, join neighbouring parts, or tick the ones that deserve their own branch.
   - Planting creates one 🎙 voice-note thought that holds the full transcript under timestamp headings, folded in the detail panel. The parts you ticked become its follow-ups.
+  - The original recording is kept **on this device** (not synced or exported), so the voice note gets a player: tap any timestamp in the transcript to hear that moment, and each part you planted as a branch has **▶ Play from m:ss**. Settings shows how much space the recordings use and can delete them.
+  - Unhelpful file names like `PTT-20260927-WA0003.opus` become "Voice note · 27 Sep".
+  - For long notes, record with your phone's built-in recorder (it keeps going with the screen off and survives calls) and share the file in.
+- **Daily reflection:** once a day, when you open the app, one short question (a different one each day). Your answer is planted on the **Reflection** limb. Press **Not today** to skip, or turn it off in Settings. **What grew this week** (command palette, or from the reflection card) shows the week at a glance: what you planted, what's blooming, your voice notes and reflections, a bar per limb, and the newest thoughts. It ends with a prompt to reflect on the week.
 - **Tend** (`W`, or the WILTING counter): walks you through stale thoughts. Revive, park or prune each with one tap. Once a day, the app mentions any wilting thoughts when it opens.
 - **Vine suggestions:** the detail panel proposes related thoughts on other limbs, based on shared tags and words. Add one as a vine or dismiss it.
 - **Limbs:** drag a limb header onto another to reorder them, or use ↑↓ in Settings.
@@ -53,6 +57,7 @@ Every thought has a status: `seed → growing → blooming → dormant → prune
 Everything is stored locally in your browser (IndexedDB), and it works offline once installed as a PWA.
 
 - **Sync across devices (optional):** go to Settings → Sync across devices → **Turn on sync**. Then enter the sync code on your other devices. Sync is **end-to-end encrypted**: the code never leaves your devices, and the server stores only AES-GCM ciphertext under an id derived from the code. Edits merge per thought (the newest wins), deletions carry over, and sync runs a few seconds after each change, when you return to the app, and once a minute. If you lose the code, nobody can read the server copy, but each device keeps its own full local copy.
+- **Backup history:** while sync is on, the server keeps an encrypted snapshot of your grove every ~6 hours. It keeps everything from the last 2 days, then one per day, for 30 days. In Settings → Sync → **Backup history**, **Bring back missing** re-adds anything deleted since that snapshot and changes nothing else. **⤓** downloads that snapshot as a JSON backup, which you can use with **Restore backup** to roll everything back. Snapshots are encrypted like the rest of sync, so the server still can't read them.
 - **Export Markdown:** gives you a `.zip` with one file per limb plus `Seeds.md`. Each file is a nested list that any editor can read. Hidden comments keep ids and dates, so importing it back loses nothing.
 - **Export JSON:** a full backup.
 - **Import:** merges `.json`, a Mindgrove `.zip`, or plain `.md` files. Markdown you wrote by hand works too. **Restore backup** replaces everything.
@@ -113,8 +118,24 @@ Manual deploy from your machine: `fly deploy`.
 
 ## Roadmap
 
-- Done since v1: growth-rings replay, wilting reminders (Tend), vine suggestions, voice capture, share target, encrypted sync
-- Next ideas: sync conflict history, per-limb sharing, richer replay (vines and statuses over time)
-- AI placement suggestions are intentionally deferred.
+**Done**
+
+- v1: Grove outline, holographic Canopy, quick capture, command palette, themes, PWA/offline, Markdown and JSON export and import
+- Growth-rings replay, wilting reminders (Tend), vine suggestions, voice capture, share target
+- End-to-end encrypted sync, tidy-up of duplicates, Reflection limb
+- Voice notes → thoughts: on-device Whisper with three quality tiers, audio clean-up, loop repair, and a phone-safe download check
+- Share voice notes straight in, playback from timestamps, encrypted backup history (30 days), daily reflection and "What grew this week"
+
+**Next**
+
+- Due dates and reminders on actions (a nudge when a blooming action is due; needs a small push-notification setup on the server)
+- Read-only share link for a single limb
+- Richer replay: vines and status changes over time
+
+**Later / optional**
+
+- In-app recorder, for quick notes without leaving the app (for long notes, sharing from the phone's recorder is more reliable)
+- Key points for long voice notes from a small on-device model (about another 300–500 MB download, and it touches AI features, so it waits until wanted)
+- AI placement suggestions (intentionally deferred)
 
 See [PLAN.md](PLAN.md) for the design brief.

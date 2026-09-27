@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { byOrder } from "../model/tree";
 import { useStore } from "../store/store";
-import { cancelVoice, eta, MODELS, openVoice, resetVoice, transcribeFile, useVoice, type ModelKey } from "../voice/engine";
+import { cancelVoice, eta, MODELS, openVoice, resetVoice, transcribeFile, useVoice, voiceFile, type ModelKey } from "../voice/engine";
+import { audioStore } from "../db/db";
 import { blockedReason, deviceFit, isCached, sizeMB, type DeviceFit } from "../voice/device";
-import { formatTime, mergeWithNext, previewAfterTitle, readingMinutes, transcriptMarkdown, type Paragraph } from "../voice/segment";
+import {
+  formatTime,
+  mergeWithNext,
+  noteTitleFrom,
+  previewAfterTitle,
+  readingMinutes,
+  transcriptMarkdown,
+  type Paragraph,
+} from "../voice/segment";
 
 const AUDIO_ACCEPT = "audio/*,.m4a,.mp3,.wav,.ogg,.opus,.webm,.aac,.flac,.amr";
 // v2: the tiers moved up a model each; old saved choices shouldn't silently
@@ -259,13 +268,7 @@ function Review() {
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [view, setView] = useState<"parts" | "full">("parts");
-  const [noteTitle, setNoteTitle] = useState(
-    () =>
-      s.fileName
-        .replace(/\.[a-z0-9]+$/i, "")
-        .replace(/[_-]+/g, " ")
-        .trim() || "Voice note",
-  );
+  const [noteTitle, setNoteTitle] = useState(() => noteTitleFrom(s.fileName));
   const [place, setPlace] = useState("");
   const fullText = useMemo(() => paras.map((p) => p.text).join(" "), [paras]);
   const count = paras.filter((p) => picked[p.id]).length;
@@ -280,6 +283,9 @@ function Review() {
       status: "seed",
       limbId: place || null,
     });
+    // Keep the recording on this device so the transcript's timestamps can play it.
+    const file = voiceFile();
+    if (file) void audioStore.save(parent.id, file, file.name);
     for (const p of final.filter((x) => picked[x.id])) {
       st.addThought({
         title: p.title,
