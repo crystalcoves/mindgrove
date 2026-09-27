@@ -7,6 +7,7 @@ import { Hud } from "./ui/Hud";
 import { Palette } from "./ui/Palette";
 import { SettingsPanel } from "./ui/SettingsPanel";
 import { Tend } from "./ui/Tend";
+import { VoiceNote, isAudioFile, startVoiceNote } from "./ui/VoiceNote";
 import { THEMES } from "./ui/themes";
 import { useHotkeys } from "./ui/useHotkeys";
 import { shareToText } from "./lib/share";
@@ -30,6 +31,25 @@ export default function App() {
         receiveShare();
         void bootSync();
       });
+  }, []);
+
+  // Drop an audio file anywhere to transcribe it into thoughts.
+  useEffect(() => {
+    const over = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    };
+    const drop = (e: DragEvent) => {
+      const f = [...(e.dataTransfer?.files ?? [])].find(isAudioFile);
+      if (!f) return;
+      e.preventDefault();
+      startVoiceNote(f);
+    };
+    addEventListener("dragover", over);
+    addEventListener("drop", drop);
+    return () => {
+      removeEventListener("dragover", over);
+      removeEventListener("drop", drop);
+    };
   }, []);
 
   useEffect(() => {
@@ -60,6 +80,7 @@ export default function App() {
       <Palette />
       <SettingsPanel />
       <Tend />
+      <VoiceNote />
       <Toasts />
     </div>
   );

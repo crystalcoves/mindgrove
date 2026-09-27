@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { thoughtRows, useVisibleItems } from "../grove/rows";
 import { isTyping } from "../lib/keys";
 import { useStore } from "../store/store";
+import { openVoice, useVoice } from "../voice/engine";
 
 /** Global shortcuts. Outline navigation works in both views — selection is shared. */
 export function useHotkeys() {
@@ -32,11 +33,13 @@ export function useHotkeys() {
         return;
       }
 
-      const overlay = st.captureOpen || st.paletteOpen || st.settingsOpen || st.tendOpen;
+      const voiceOpen = useVoice.getState().open;
+      const overlay = st.captureOpen || st.paletteOpen || st.settingsOpen || st.tendOpen || voiceOpen;
       // Escape closes a panel even when focus has fallen back to the page.
-      if (k === "Escape" && (st.settingsOpen || st.tendOpen)) {
+      if (k === "Escape" && (st.settingsOpen || st.tendOpen || voiceOpen)) {
         st.openSettings(false);
         st.openTend(false);
+        openVoice(false);
         return;
       }
       if (overlay || isTyping(e) || st.editingId) return;

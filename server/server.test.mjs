@@ -31,6 +31,7 @@ describe("server", () => {
     expect(r.status).toBe(200);
     expect(r.headers.get("cache-control")).toBe("no-cache");
     expect(r.headers.get("content-encoding")).toBe("gzip");
+    expect(r.headers.get("cross-origin-embedder-policy")).toBe("credentialless");
     expect(await r.text()).toContain("Mindgrove");
     const a = await fetch(`${base}/assets/app-abc.js`);
     expect(a.headers.get("cache-control")).toContain("immutable");

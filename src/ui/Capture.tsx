@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { burstEl } from "../lib/fx";
 import { MOD } from "../lib/keys";
 import { listen, voiceSupported } from "../lib/voice";
+import { openVoice } from "../voice/engine";
 import { parseCapture } from "../model/tree";
 import { truncate, useStore } from "../store/store";
 
@@ -123,6 +124,16 @@ function CaptureBox() {
               {listening ? "Listening — tap to stop" : "Voice"}
             </button>
           )}
+          <button
+            className="chip"
+            onClick={() => {
+              close();
+              openVoice(true);
+            }}
+            title="Transcribe a recording into thoughts"
+          >
+            <i>▤</i>Voice note file
+          </button>
           <span className="grow" />
           {selected && (
             <button className={`chip${asFollowUp ? " on" : ""}`} onClick={() => setAsFollowUp((v) => !v)} title="Tab toggles">

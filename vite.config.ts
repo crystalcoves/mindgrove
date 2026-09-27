@@ -30,6 +30,14 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        // The speech-to-text library (voice notes) is fetched on first use; keep it for offline.
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@huggingface\//,
+            handler: "CacheFirst",
+            options: { cacheName: "transformers-lib", expiration: { maxEntries: 20 } },
+          },
+        ],
       },
     }),
   ],

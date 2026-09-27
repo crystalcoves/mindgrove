@@ -1,0 +1,39 @@
+name: Voice transcription e2e
+
+# Real model, real browser: synthesise speech, upload it through the UI and
+# check the words come back. Runs on feature branches when voice code changes
+# (it downloads the Whisper model, so it isn't part of every CI run).
+on:
+  push:
+    branches-ignore: [main]
+    paths: ["src/voice/**", "src/ui/VoiceNote.tsx", "e2e/voice.mjs", ".github/workflows/voice-e2e.yml"]
+  workflow_dispatch:
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm i --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
+      - name: Synthesise a spoken voice note
+        run: |
+          sudo apt-get install -y espeak-ng >/dev/null
+          espeak-ng -s 150 -w speech.wav "Good morning. This is a voice note about the garden. The tree by the fence needs more light and water. I had a thought about moving the bench. Remember to water the tomatoes every morning. The garden is my favourite thought of the day."
+          ls -la speech.wav
+      - run: npm run build
+      - name: Transcribe through the UI
+        run: |
+          npx vite preview --port 4173 --strictPort &
+          sleep 3
+          node e2e/voice.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voice-e2e
+          path: voice-e2e.png

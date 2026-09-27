@@ -7,6 +7,7 @@ import { STATUSES, STATUS_META, type Thought } from "../model/types";
 import { useStore } from "../store/store";
 import { STATUS_COLORS } from "./themes";
 import { suggestVines } from "../model/suggest";
+import { readingMinutes } from "../voice/segment";
 
 export function Detail({ floating }: { floating?: boolean }) {
   const id = useStore((s) => s.selectedId);
@@ -327,6 +328,9 @@ function BodyField({ t }: { t: Thought }) {
     if (!editing) setValue(t.body);
   }, [t.body, editing]);
   const html = useMemo(() => renderMarkdown(t.body), [t.body]);
+  // Long notes (e.g. voice-note transcripts) start folded so the panel stays calm.
+  const long = t.body.length > 1200;
+  const [expanded, setExpanded] = useState(false);
   const commit = () => {
     if (value !== t.body) useStore.getState().update(t.id, { body: value });
     setEditing(false);
@@ -341,7 +345,7 @@ function BodyField({ t }: { t: Thought }) {
       </div>
       {editing ? (
         <textarea
-          className="input body-edit"
+          className={`input body-edit${long ? " tall" : ""}`}
           autoFocus
           value={value}
           placeholder={"Markdown works: **bold**, - lists, [links](https://…)"}
@@ -355,11 +359,18 @@ function BodyField({ t }: { t: Thought }) {
           }}
         />
       ) : (
-        <div
-          className="md"
-          onClick={(e) => (e.target as HTMLElement).tagName !== "A" && setEditing(true)}
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <>
+          <div
+            className={`md${long && !expanded ? " folded" : ""}`}
+            onClick={(e) => !long && (e.target as HTMLElement).tagName !== "A" && setEditing(true)}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+          {long && (
+            <button className="btn ghost small md-more" onClick={() => setExpanded((v) => !v)}>
+              {expanded ? "Fold ▴" : `Show all · ${readingMinutes(t.body)} min read ▾`}
+            </button>
+          )}
+        </>
       )}
     </section>
   );

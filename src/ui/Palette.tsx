@@ -6,6 +6,7 @@ import { STATUSES, STATUS_META, type ThemeName } from "../model/types";
 import { truncate, useStore } from "../store/store";
 import { THEMES } from "./themes";
 import { pickImport } from "./SettingsPanel";
+import { openVoice } from "../voice/engine";
 
 interface Item {
   id: string;
@@ -121,6 +122,7 @@ function PaletteBox() {
           if (name?.trim()) st().addLimb(name.trim());
         },
       },
+      { id: "c-voice", group: "Actions", icon: "🎙", title: "Transcribe a voice note…", run: () => openVoice(true) },
       { id: "c-tend", group: "Actions", icon: "❦", title: "Tend wilting thoughts…", keys: "W", run: () => st().openTend(true) },
       { id: "c-wilt", group: "Filters", icon: "❦", title: "Show wilting thoughts", run: () => st().setFilters({ wilting: true }) },
       ...STATUSES.map((s) => ({

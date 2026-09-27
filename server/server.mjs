@@ -135,6 +135,10 @@ export function createServer({ distDir, dataDir }) {
     const ext = extname(path);
     const headers = {
       "Content-Type": TYPES[ext] ?? "application/octet-stream",
+      // Cross-origin isolation lets in-browser speech-to-text use multiple threads.
+      // "credentialless" still allows the CDN/model downloads it needs.
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "credentialless",
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin",
       "Cache-Control": rel.startsWith("assets/") ? "public, max-age=31536000, immutable" : "no-cache",

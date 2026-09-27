@@ -36,6 +36,11 @@ Every thought has a status: `seed → growing → blooming → dormant → prune
   - `M` move to a limb or thought · `L` grow a vine · `Del` remove (you get an undo toast)
   - Drag rows to re-parent them. Drop on the top or bottom edge of a row to place before or after it, in the middle to nest under it, or on a limb or Seeds header to plant it there.
   - Search and filter by status, tag, limb, or wilting.
+- **Voice notes → thoughts:** drop an audio file (m4a, mp3, wav, ogg/opus, webm) anywhere in the app. You can also use the **Voice note file** button in the capture box, or the command palette entry *Transcribe a voice note*.
+  - Transcription runs **on your device** with Whisper (via transformers.js), so your audio is never uploaded. The model downloads once (Fast about 45 MB, Balanced about 80 MB, Best about 250 MB) and then works offline.
+  - Long recordings are handled in pieces of about 30 seconds, cut at pauses. You get live progress, a time estimate and cancel, and you can minimise the panel while it works.
+  - You then review the transcript as short timestamped parts. Rename them, join neighbouring parts, or tick the ones that deserve their own branch.
+  - Planting creates one 🎙 voice-note thought that holds the full transcript under timestamp headings, folded in the detail panel. The parts you ticked become its follow-ups.
 - **Tend** (`W`, or the WILTING counter): walks you through stale thoughts. Revive, park or prune each with one tap. Once a day, the app mentions any wilting thoughts when it opens.
 - **Vine suggestions:** the detail panel proposes related thoughts on other limbs, based on shared tags and words. Add one as a vine or dismiss it.
 - **Limbs:** drag a limb header onto another to reorder them, or use ↑↓ in Settings.
@@ -80,7 +85,9 @@ src/
   canopy/    seeded layout, holo shaders, instanced scene, projected labels
   ui/        HUD, detail panel, capture, palette, settings, hotkeys, themes
   lib/       ids/PRNG, markdown renderer, fx particles, voice, share target
+  voice/     voice notes: audio windows, Whisper worker, paragraphs
 server/      Node server: static files + /api/sync (compare-and-swap blobs)
+e2e/         real-model voice test (run by .github/workflows/voice-e2e.yml)
 ```
 
 Design notes:
