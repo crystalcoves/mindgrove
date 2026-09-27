@@ -85,7 +85,7 @@ server/      Node server: static files + /api/sync (compare-and-swap blobs)
 
 Design notes:
 
-- **Stable layout.** Each segment's position comes only from its own id and its ancestors, never from its siblings. Adding thoughts never moves existing ones, and a test checks this.
+- **Clean, stable layout.** Siblings fan out around their parent like seeds in a sunflower head. Each sibling's direction steps by the golden angle, the spread widens with each new sibling, and fork points are staggered along the parent, so branches don't clump or cross. A branch's slot is its rank among siblings by creation time, so adding thoughts never moves existing ones. Tests check both the spacing and the stability.
 - **Fast first load.** three.js loads only when the Canopy first opens. The Grove ships at about 125 KB gzipped.
 - **3D performance.** Branches and nodes are instanced meshes. The layout depends only on the tree's structure, so editing a title doesn't rebuild the scene.
 - **Look.** The visual language comes from [BruNet](https://github.com/crystalcoves/BruNet): hub panels with amber corner brackets, mono labels, cyan holo lines. Following BruNet's rules, large surfaces use no `backdrop-filter` and no looping animations. Reduced motion is honoured everywhere, including the system setting on first run.

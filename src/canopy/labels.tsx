@@ -41,6 +41,11 @@ export function LabelProjector() {
   useFrame(() => {
     const specs = [...useLabels.getState().specs].sort((a, b) => b.priority - a.priority);
     const placed: [number, number, number, number][] = [];
+    // Keep branch labels out from under the HUD title block.
+    const layer = document.querySelector(".c-labels")?.getBoundingClientRect();
+    const hud = document.querySelector(".c-hud")?.getBoundingClientRect();
+    const blocked: [number, number, number, number] | null =
+      layer && hud ? [hud.left - layer.left, hud.top - layer.top, hud.right - layer.left, hud.bottom - layer.top] : null;
     for (const s of specs) {
       const el = elements.get(s.key);
       if (!el) continue;
@@ -53,8 +58,10 @@ export function LabelProjector() {
       const y = (-v.y * 0.5 + 0.5) * size.height;
       const w = el.offsetWidth;
       const h = el.offsetHeight;
-      const rect: [number, number, number, number] = [x - w / 2, y - h - 10, x + w / 2, y - 10];
-      const clash = s.priority < 3 && placed.some((p) => rect[0] < p[2] && rect[2] > p[0] && rect[1] < p[3] && rect[3] > p[1]);
+      // Pad the box so neighbouring labels keep a little breathing room.
+      const rect: [number, number, number, number] = [x - w / 2 - 6, y - h - 14, x + w / 2 + 6, y - 6];
+      const hit = (p: [number, number, number, number]) => rect[0] < p[2] && rect[2] > p[0] && rect[1] < p[3] && rect[3] > p[1];
+      const clash = s.priority < 9 && ((s.priority < 3 && placed.some(hit)) || (!!blocked && hit(blocked)));
       el.style.transform = `translate3d(${Math.round(x - w / 2)}px, ${Math.round(y - h - 10)}px, 0)`;
       el.style.opacity = clash ? "0" : "1";
       if (!clash) placed.push(rect);

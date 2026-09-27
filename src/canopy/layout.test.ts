@@ -3,6 +3,7 @@ import type { Limb, Thought } from "../model/types";
 import { layoutTree } from "./layout";
 
 const limb = (id: string, order: number): Limb => ({ id, name: id, color: "#fff", order, createdAt: 0 });
+let clock = 0;
 const t = (id: string, parentId: string | null, limbId: string | null = null): Thought => ({
   id,
   parentId,
@@ -12,7 +13,7 @@ const t = (id: string, parentId: string | null, limbId: string | null = null): T
   status: "seed",
   tags: [],
   order: 0,
-  createdAt: 0,
+  createdAt: ++clock,
   updatedAt: 0,
   touchedAt: 0,
 });
@@ -37,13 +38,34 @@ describe("canopy layout", () => {
     for (const [id, seg] of before.limbs) expect(after.limbs.get(id)).toEqual(seg);
   });
 
+  it("fans siblings apart instead of clumping them", () => {
+    const kids: Thought[] = [t("hub", null, "work")];
+    for (let i = 0; i < 8; i++) kids.push(t(`s${i}`, "hub"));
+    const l = layoutTree(byId(kids), limbs);
+    const dirs = kids.slice(1).map((k) => l.nodes.get(k.id)!.dir);
+    let minAngle = Math.PI;
+    for (let i = 0; i < dirs.length; i++)
+      for (let j = i + 1; j < dirs.length; j++) {
+        const dot = dirs[i][0] * dirs[j][0] + dirs[i][1] * dirs[j][1] + dirs[i][2] * dirs[j][2];
+        minAngle = Math.min(minAngle, Math.acos(Math.min(1, dot)));
+      }
+    expect(minAngle).toBeGreaterThan(0.2); // > ~11° between any two of 8 siblings
+    // Fork points are staggered along the parent, not stacked at the tip.
+    const hub = l.nodes.get("hub")!;
+    const along = kids.slice(1).map((k) => {
+      const s = l.nodes.get(k.id)!.start;
+      return Math.hypot(s[0] - hub.start[0], s[1] - hub.start[1], s[2] - hub.start[2]);
+    });
+    expect(Math.max(...along) - Math.min(...along)).toBeGreaterThan(0.5);
+  });
+
   it("children start on their parent and grow upward-ish", () => {
     const l = layoutTree(byId(base), limbs);
     const a = l.nodes.get("a")!;
     const a1 = l.nodes.get("a1")!;
     // a1 forks from somewhere along a
     const along = [0, 1, 2].map((k) => (a1.start[k] - a.start[k]) / (a.end[k] - a.start[k] || 1));
-    expect(Math.min(...along)).toBeGreaterThan(0.55);
+    expect(Math.min(...along)).toBeGreaterThan(0.3);
     expect(a1.depth).toBe(1);
     expect(a1.radius).toBeLessThan(a.radius);
   });

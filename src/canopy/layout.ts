@@ -1,6 +1,6 @@
 import { rng } from "../lib/id";
 import type { ById } from "../model/tree";
-import type { Limb } from "../model/types";
+import type { Limb, Thought } from "../model/types";
 
 export type V3 = [number, number, number];
 
@@ -21,12 +21,15 @@ export interface Layout {
   nodes: Map<string, Segment>;
 }
 
-export const TRUNK_HEIGHT = 6;
+export const TRUNK_HEIGHT = 7;
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 
 /**
- * Procedural, seeded layout. Every segment is a pure function of its own id and
- * its ancestors, never of its siblings, so adding a thought never moves another.
+ * Procedural, seeded layout. Siblings fan out around their parent like seeds in
+ * a sunflower head (golden-angle azimuth, spread widening with each sibling),
+ * and fork at staggered points along it, so branches don't clump or cross.
+ * A thought's slot is its rank among siblings by creation time: new thoughts
+ * are always the newest, so adding one never moves an existing branch.
  */
 export function layoutTree(thoughts: ById, limbs: Limb[]): Layout {
   const trunk: Segment = seg([0, 0, 0], [0, 1, 0], TRUNK_HEIGHT, 0.34, -1, null);
@@ -35,6 +38,20 @@ export function layoutTree(thoughts: ById, limbs: Limb[]): Layout {
 
   const nodes = new Map<string, Segment>();
   const visiting = new Set<string>();
+
+  // Rank among siblings, oldest first.
+  const groups = new Map<string, Thought[]>();
+  for (const t of Object.values(thoughts)) {
+    const key = t.parentId ?? `limb:${t.limbId ?? ""}`;
+    const g = groups.get(key);
+    if (g) g.push(t);
+    else groups.set(key, [t]);
+  }
+  const rank = new Map<string, number>();
+  for (const g of groups.values()) {
+    g.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    g.forEach((t, i) => rank.set(t.id, i));
+  }
 
   const place = (id: string): Segment | null => {
     const hit = nodes.get(id);
@@ -45,10 +62,11 @@ export function layoutTree(thoughts: ById, limbs: Limb[]): Layout {
     const r = rng(id);
     let s: Segment;
     const parent = t.parentId ? place(t.parentId) : null;
+    const k = rank.get(id) ?? 0;
     if (parent) {
-      s = branchFrom(parent, r, parent.depth + 1, parent.limbId);
+      s = branchFrom(parent, r, parent.depth + 1, parent.limbId, k, phaseOf(t.parentId!));
     } else if (t.limbId && limbSegs.has(t.limbId)) {
-      s = branchFrom(limbSegs.get(t.limbId)!, r, 0, t.limbId);
+      s = branchFrom(limbSegs.get(t.limbId)!, r, 0, t.limbId, k, phaseOf(t.limbId));
     } else {
       s = seedSegment(r);
     }
@@ -63,23 +81,29 @@ export function layoutTree(thoughts: ById, limbs: Limb[]): Layout {
 
 function limbSegment(l: Limb): Segment {
   const r = rng(l.id);
-  const az = l.order * GOLDEN * 1.0 + r() * 0.25;
-  const h = 2.4 + ((l.order * 1.37) % 3.2) + r() * 0.3;
-  const tilt = 0.55 + r() * 0.35; // radians up from horizontal
+  // Limbs spiral up the trunk by the golden angle, spaced out in height,
+  // and reach outward (fairly flat) so each limb's crown has room.
+  const az = l.order * GOLDEN + r() * 0.2;
+  const h = 2.6 + ((l.order * 0.618034) % 1) * 3.6;
+  const tilt = 0.32 + r() * 0.2; // radians up from horizontal
   const dir: V3 = [Math.cos(az) * Math.cos(tilt), Math.sin(tilt), Math.sin(az) * Math.cos(tilt)];
-  return seg([0, Math.min(h, TRUNK_HEIGHT - 0.4), 0], dir, 3.2 + r() * 0.8, 0.17, -1, l.id);
+  return seg([0, Math.min(h, TRUNK_HEIGHT - 0.4), 0], dir, 4.6 + r() * 0.6, 0.17, -1, l.id);
 }
 
-function branchFrom(parent: Segment, r: () => number, depth: number, limbId: string | null): Segment {
-  // Fork somewhere along the outer part of the parent.
-  const along = 0.6 + r() * 0.4;
-  const start = lerp(parent.start, parent.end, along);
-  const spread = 0.45 + r() * 0.5;
-  const az = r() * Math.PI * 2;
+const phaseOf = (key: string) => rng(`phase:${key}`)() * Math.PI * 2;
+const frac = (x: number) => x - Math.floor(x);
+
+function branchFrom(parent: Segment, r: () => number, depth: number, limbId: string | null, k: number, phase: number): Segment {
+  // Stagger fork points along the parent (golden-ratio sequence), outer part first.
+  const along = 0.42 + 0.56 * frac(0.83 + k * 0.618034) + (r() - 0.5) * 0.04;
+  const start = lerp(parent.start, parent.end, Math.min(1, Math.max(0.35, along)));
+  // Sunflower fan: azimuth steps by the golden angle, spread widens with rank.
+  const az = phase + k * GOLDEN + (r() - 0.5) * 0.18;
+  const spread = Math.min(1.25, 0.5 + 0.21 * Math.sqrt(k + 0.5)) + (r() - 0.5) * 0.06;
   let dir = rotateAway(parent.dir, spread, az);
-  // Trees reach for the light.
-  dir = norm(add(dir, [0, 0.35, 0]));
-  const len = Math.max(0.55, 2.3 * Math.pow(0.74, depth) * (0.8 + r() * 0.4));
+  // Trees reach for the light — gently, so the fan stays open.
+  dir = norm(add(dir, [0, depth === 0 ? 0.18 : 0.24, 0]));
+  const len = depth === 0 ? 2.7 * (0.9 + r() * 0.2) : Math.max(0.6, 1.7 * Math.pow(0.74, depth - 1) * (0.88 + r() * 0.24));
   // Branches are noticeably thicker than the sub-branches that fork off them.
   const radius = depth === 0 ? 0.11 : Math.max(0.018, 0.085 * Math.pow(0.66, depth));
   return seg(start, dir, len, radius, depth, limbId);

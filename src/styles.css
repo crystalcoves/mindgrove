@@ -1808,3 +1808,15 @@ select.input {
   color: #ff6f6f;
   border-color: rgba(255, 111, 111, 0.5);
 }
+
+/* Branch labels sit on a small dark chip so they stay readable over glowing limbs. */
+.lbl-twig {
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(3, 5, 10, 0.72);
+  border-left: 2px solid color-mix(in srgb, var(--c) 70%, transparent);
+  color: color-mix(in srgb, var(--c) 45%, #fff);
+  opacity: 0.95;
+  text-shadow: none;
+  max-width: 200px;
+}

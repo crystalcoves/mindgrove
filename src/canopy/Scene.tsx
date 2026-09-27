@@ -235,7 +235,7 @@ export function Scene({ opts }: { opts: CanopyOptions }) {
   return (
     <>
       <color attach="background" args={[theme.bg]} />
-      <fog attach="fog" args={[theme.fog, 22, 60]} />
+      <fog attach="fog" args={[theme.fog, 30, 80]} />
       <Ground color={theme.grid} motion={motion} />
       <Branches entries={branches} growth={growth} motion={motion} maxDelay={maxDelay} mountAt={mountAt} />
       {[branchNodes, twigNodes].map((list, i) => (
@@ -569,7 +569,7 @@ function Spores({ color, motion, level }: { color: string; motion: number; level
     const r = rng("spores");
     for (let i = 0; i < count; i++) {
       const a = r() * Math.PI * 2;
-      const rad = 1 + Math.sqrt(r()) * 13;
+      const rad = 1 + Math.sqrt(r()) * 16;
       pos.set([Math.cos(a) * rad, r() * height, Math.sin(a) * rad], i * 3);
       seed[i] = r();
     }
@@ -608,7 +608,7 @@ function Spores({ color, motion, level }: { color: string; motion: number; level
 }
 
 function Ground({ color, motion }: { color: string; motion: number }) {
-  const radius = 16;
+  const radius = 20;
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -756,7 +756,7 @@ function CameraRig({
     for (const s of layout.nodes.values()) r = Math.max(r, Math.hypot(s.end[0], s.end[2]), s.end[1] * 0.8);
     for (const s of layout.limbs.values()) r = Math.max(r, Math.hypot(s.end[0], s.end[2]));
     // Portrait screens need to stand further back to fit the crown's width.
-    const d = Math.min(48, (9 + r * 1.35) / Math.min(1, Math.pow(aspect, 0.75)));
+    const d = Math.min(58, (9 + r * 1.35) / Math.min(1, Math.pow(aspect, 0.75)));
     return {
       target: new THREE.Vector3(0, TRUNK_HEIGHT * 0.8, 0),
       pos: new THREE.Vector3(d * 0.55, TRUNK_HEIGHT * 0.8 + d * 0.28, d * 0.85),
@@ -792,9 +792,17 @@ function CameraRig({
   useEffect(() => {
     if (!focus || !controls.current) return;
     const toT = new THREE.Vector3(...focus);
-    // Keep the current viewing direction, come in to a comfortable distance.
-    const dir = camera.position.clone().sub(controls.current.target).normalize();
-    const dist = Math.min(9, Math.max(5, camera.position.distanceTo(controls.current.target) * 0.6));
+    // Approach from outside the crown (away from the trunk, a little above),
+    // leaning toward the current view so the move doesn't whip around.
+    const out = new THREE.Vector3(toT.x, 0, toT.z);
+    if (out.lengthSq() < 0.01) out.set(0, 0, 1);
+    out
+      .normalize()
+      .multiplyScalar(0.9)
+      .add(new THREE.Vector3(0, 0.32, 0));
+    const cur = camera.position.clone().sub(controls.current.target).normalize();
+    const dir = out.normalize().multiplyScalar(0.8).add(cur.setY(0).multiplyScalar(0.2)).normalize();
+    const dist = Math.min(12, Math.max(8, camera.position.distanceTo(controls.current.target) * 0.6));
     const toP = toT.clone().add(dir.multiplyScalar(dist));
     toP.y = Math.max(toP.y, 0.8);
     fly(toT, toP);
@@ -819,7 +827,7 @@ function CameraRig({
       enableDamping
       dampingFactor={0.08}
       minDistance={2.5}
-      maxDistance={48}
+      maxDistance={60}
       maxPolarAngle={Math.PI * 0.49}
       autoRotate={autoRotate}
       autoRotateSpeed={0.35}

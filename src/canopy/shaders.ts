@@ -9,9 +9,12 @@ export const branchVertex = /* glsl */ `
   varying vec3 vN;
   varying vec3 vView;
   varying float vY;
+  varying float vNear;
   void main() {
     vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
     vec4 mv = viewMatrix * wp;
+    // Fade geometry that sits right in front of the lens, so close-ups stay clean.
+    vNear = smoothstep(1.2, 4.5, -mv.z);
     vN = normalize(normalMatrix * mat3(instanceMatrix) * normal);
     vView = normalize(-mv.xyz);
     vY = wp.y;
@@ -29,6 +32,7 @@ export const branchFragment = /* glsl */ `
   varying vec3 vN;
   varying vec3 vView;
   varying float vY;
+  varying float vNear;
   void main() {
     float fres = pow(1.0 - abs(dot(normalize(vN), normalize(vView))), 1.7);
     float scan = 0.78 + 0.22 * sin(vY * 34.0 - uTime * 3.0 * uMotion);
@@ -38,7 +42,7 @@ export const branchFragment = /* glsl */ `
     float grey = dot(col, vec3(0.299, 0.587, 0.114));
     col = mix(col, vec3(grey) * 0.55, vFade);
     col *= 1.0 - 0.6 * vFade;
-    gl_FragColor = vec4(col, 0.45 + 0.55 * fres);
+    gl_FragColor = vec4(col * vNear, (0.45 + 0.55 * fres) * vNear);
   }
 `;
 
