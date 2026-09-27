@@ -20,6 +20,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Candidate model sizes (for choosing the quality tiers)
+        run: |
+          for m in onnx-community/whisper-base onnx-community/whisper-small onnx-community/whisper-large-v3-turbo onnx-community/distil-small.en onnx-community/moonshine-base-ONNX; do
+            echo "== $m"
+            curl -s "https://huggingface.co/api/models/$m/tree/main/onnx" | jq -r '.[] | "\(.size/1048576|floor) MB  \(.path)"' | grep -E "encoder|decoder_model_merged" | grep -vE "_bnb4|_uint8|_int8" || echo "  (not found)"
+          done
       - run: npm i --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
       - name: Synthesise a spoken voice note
         run: |
