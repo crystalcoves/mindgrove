@@ -33,7 +33,7 @@ export default defineConfig({
         // The speech-to-text library (voice notes) is fetched on first use; keep it for offline.
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@huggingface\//,
+            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/(@huggingface|onnxruntime-web|@huggingface\/(jinja|tokenizers))/,
             handler: "CacheFirst",
             options: { cacheName: "transformers-lib", expiration: { maxEntries: 20 } },
           },

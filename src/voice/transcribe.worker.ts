@@ -7,7 +7,11 @@
  * transcriptions work offline. Audio never leaves the device.
  */
 
-const TRANSFORMERS_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.web.min.js";
+// jsDelivr's "+esm" build rewrites the library's bare imports (onnxruntime-web)
+// into CDN URLs, so it loads in a browser without a bundler.
+const TRANSFORMERS_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/+esm";
+// The ONNX Runtime build transformers@4.3.0 depends on; its .wasm files load from here.
+const ORT_WASM = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Pipe = (
@@ -44,6 +48,8 @@ async function load(model: string) {
   if (pipe && loadedKey === key) return post({ type: "ready", device });
   const T: any = await import(/* @vite-ignore */ TRANSFORMERS_URL);
   T.env.allowLocalModels = false;
+  const onnx = T.env.backends?.onnx;
+  if (onnx?.wasm) onnx.wasm.wasmPaths = ORT_WASM;
   const progress_callback = (p: any) => {
     if (p.status === "progress_total") post({ type: "loading", progress: p.progress, loaded: p.loaded, total: p.total });
   };
