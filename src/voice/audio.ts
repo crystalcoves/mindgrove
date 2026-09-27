@@ -6,19 +6,20 @@
  *   invent text over silence)
  */
 
-export function highPass(x: Float32Array, sr: number, cutoff = 80): Float32Array {
+/** One-pole high-pass. Pass `out = x` to filter in place (no extra copy: long notes are big). */
+export function highPass(x: Float32Array, sr: number, cutoff = 80, out: Float32Array = new Float32Array(x.length)): Float32Array {
   const rc = 1 / (2 * Math.PI * cutoff);
   const dt = 1 / sr;
   const a = rc / (rc + dt);
-  const y = new Float32Array(x.length);
   let prevX = 0;
   let prevY = 0;
   for (let i = 0; i < x.length; i++) {
-    prevY = a * (prevY + x[i] - prevX);
-    prevX = x[i];
-    y[i] = prevY;
+    const xi = x[i];
+    prevY = a * (prevY + xi - prevX);
+    prevX = xi;
+    out[i] = prevY;
   }
-  return y;
+  return out;
 }
 
 /** RMS of consecutive frames. */
@@ -52,7 +53,7 @@ export function analyse(x: Float32Array, sr: number): Loudness {
 }
 
 /** Scale so speech sits around -20 dBFS (gain capped, peaks kept below clipping). */
-export function normalise(x: Float32Array, sr: number, l: Loudness): Float32Array {
+export function normalise(x: Float32Array, sr: number, l: Loudness, inPlace = false): Float32Array {
   const rms = frameRms(x, sr);
   let sum = 0;
   let n = 0;
@@ -67,7 +68,7 @@ export function normalise(x: Float32Array, sr: number, l: Loudness): Float32Arra
   for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs(x[i]));
   const gain = Math.min(10, 0.1 / speechRms, peak > 0 ? 0.98 / peak : 10);
   if (Math.abs(gain - 1) < 0.05) return x;
-  const y = new Float32Array(x.length);
+  const y = inPlace ? x : new Float32Array(x.length);
   for (let i = 0; i < x.length; i++) y[i] = x[i] * gain;
   return y;
 }
@@ -80,11 +81,14 @@ export function speechShare(x: Float32Array, sr: number, l: Loudness): number {
   return rms.length ? s / rms.length : 0;
 }
 
+/**
+ * Clean up in place: a 27-minute note is ~100 MB of samples, and phones
+ * shouldn't hold several copies of it at once.
+ */
 export function prepareAudio(x: Float32Array, sr: number): { audio: Float32Array; loudness: Loudness } {
-  const filtered = highPass(x, sr);
-  const before = analyse(filtered, sr);
-  const audio = normalise(filtered, sr, before);
-  return { audio, loudness: analyse(audio, sr) };
+  highPass(x, sr, 80, x);
+  normalise(x, sr, analyse(x, sr), true);
+  return { audio: x, loudness: analyse(x, sr) };
 }
 
 /** Does a transcript look like Whisper got stuck repeating itself? */

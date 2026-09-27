@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { byOrder } from "../model/tree";
 import { useStore } from "../store/store";
 import { cancelVoice, eta, MODELS, openVoice, resetVoice, transcribeFile, useVoice, type ModelKey } from "../voice/engine";
+import { blockedReason, deviceFit, isCached, sizeMB, type DeviceFit } from "../voice/device";
 import { formatTime, mergeWithNext, previewAfterTitle, readingMinutes, transcriptMarkdown, type Paragraph } from "../voice/segment";
 
 const AUDIO_ACCEPT = "audio/*,.m4a,.mp3,.wav,.ogg,.opus,.webm,.aac,.flac,.amr";
@@ -23,10 +24,33 @@ export function isAudioFile(f: File) {
 }
 
 /** Start a transcription from anywhere (file picker, drag and drop). */
-export function startVoiceNote(file: File) {
+/** The saved tier, or the next one down if this device can't run it. */
+function fitModel(pref: ModelKey, fit: DeviceFit | null): ModelKey {
+  const order: ModelKey[] = ["best", "balanced", "fast"];
+  for (const m of order.slice(order.indexOf(pref))) if (!blockedReason(m, fit)) return m;
+  return "fast";
+}
+
+/** Check data/storage before a first-time model download; false = user said no. */
+async function okToDownload(model: ModelKey, fit: DeviceFit | null): Promise<boolean> {
+  if (await isCached(model)) return true;
+  // Keep the model once downloaded, so the browser doesn't evict it under pressure.
+  void navigator.storage?.persist?.().catch(() => false);
+  if (fit?.metered)
+    return confirm(
+      `The ${MODELS[model].label} speech model is a one-time download of about ${sizeMB(model)} MB. You seem to be on mobile data or Data Saver — download now?`,
+    );
+  return true;
+}
+
+/** Start a transcription from anywhere (file picker, drag and drop). */
+export async function startVoiceNote(file: File) {
   const prefs = loadPrefs();
+  const fit = await deviceFit();
+  const model = fitModel(prefs.model, fit);
   openVoice(true);
-  void transcribeFile(file, { model: prefs.model, language: prefs.language === "auto" ? null : prefs.language });
+  if (!(await okToDownload(model, fit))) return;
+  void transcribeFile(file, { model, language: prefs.language === "auto" ? null : prefs.language });
 }
 
 export function VoiceNote() {
@@ -77,8 +101,15 @@ function Pick() {
       /* ignore */
     }
   };
-  const go = (f?: File | null) =>
-    f && void transcribeFile(f, { model: prefs.model, language: prefs.language === "auto" ? null : prefs.language });
+  const [fit, setFit] = useState<DeviceFit | null>(null);
+  useEffect(() => {
+    void deviceFit().then(setFit);
+  }, []);
+  const model = fitModel(prefs.model, fit);
+  const go = async (f?: File | null) => {
+    if (!f || !(await okToDownload(model, fit))) return;
+    void transcribeFile(f, { model, language: prefs.language === "auto" ? null : prefs.language });
+  };
 
   return (
     <>
@@ -114,20 +145,27 @@ function Pick() {
               Quality<small>Downloaded once, then works offline</small>
             </span>
             <div className="seg">
-              {(Object.keys(MODELS) as ModelKey[]).map((k) => (
-                <button
-                  key={k}
-                  className={prefs.model === k ? "on" : ""}
-                  style={{ "--sc": "var(--accent)" } as React.CSSProperties}
-                  onClick={() => save({ ...prefs, model: k })}
-                  title={`${MODELS[k].note} · ${MODELS[k].size}`}
-                >
-                  {MODELS[k].label}
-                  <small className="dim"> {MODELS[k].size}</small>
-                </button>
-              ))}
+              {(Object.keys(MODELS) as ModelKey[]).map((k) => {
+                const blocked = blockedReason(k, fit);
+                return (
+                  <button
+                    key={k}
+                    className={model === k ? "on" : ""}
+                    style={{ "--sc": "var(--accent)" } as React.CSSProperties}
+                    disabled={!!blocked}
+                    onClick={() => save({ ...prefs, model: k })}
+                    title={blocked ?? `${MODELS[k].note} · ${MODELS[k].size}`}
+                  >
+                    {MODELS[k].label}
+                    <small className="dim"> {MODELS[k].size}</small>
+                  </button>
+                );
+              })}
             </div>
           </div>
+          {blockedReason("best", fit) && (
+            <small className="dim">Best isn't available here: {blockedReason("best", fit)?.toLowerCase()}.</small>
+          )}
           <label className="field">
             <span>
               Language<small>Picking it is faster and more accurate than auto</small>

@@ -76,10 +76,12 @@ async function load(model: string) {
       progress_callback,
     });
   device = gpu.ok ? "webgpu" : "wasm";
+  // The large model on a phone CPU would crawl or run out of memory: GPU only.
+  if (/large/.test(model) && !gpu.ok) throw new Error("Best needs a device that can use its graphics chip. Try Balanced.");
   try {
     pipe = await tryLoad(device);
   } catch (e) {
-    if (device !== "webgpu") throw e;
+    if (device !== "webgpu" || /large/.test(model)) throw e;
     device = "wasm"; // some GPUs/drivers can't run it; the CPU path always works
     pipe = await tryLoad(device);
   }
