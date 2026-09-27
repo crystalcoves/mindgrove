@@ -28,7 +28,7 @@ export default function App() {
   }, [theme]);
 
   return (
-    <div className={`app theme-${theme}${reduced ? " reduced-motion" : ""}`} style={THEMES[theme].css as React.CSSProperties}>
+    <div className={`app theme-${theme} view-${view}${reduced ? " reduced-motion" : ""}`} style={THEMES[theme].css as React.CSSProperties}>
       <Hud />
       <main className="main">
         <div className="stage">

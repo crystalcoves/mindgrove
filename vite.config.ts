@@ -32,15 +32,8 @@ export default defineConfig({
     }),
   ],
   build: {
+    // three.js lives in the lazily loaded Canopy chunk.
     chunkSizeWarningLimit: 1500,
-    rollupOptions: {
-      output: {
-        manualChunks(id: string) {
-          if (/node_modules\/(three|@react-three|postprocessing|three-stdlib|maath|camera-controls)/.test(id)) return "three";
-          return undefined;
-        },
-      },
-    },
   },
   test: {
     environment: "jsdom",

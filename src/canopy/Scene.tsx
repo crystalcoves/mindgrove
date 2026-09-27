@@ -676,18 +676,20 @@ function CameraRig({
 }) {
   const controls = useRef<OrbitControlsImpl>(null);
   const camera = useThree((s) => s.camera);
+  const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height));
   const flight = useRef<{ fromT: THREE.Vector3; toT: THREE.Vector3; fromP: THREE.Vector3; toP: THREE.Vector3; t: number } | null>(null);
 
   const home = useMemo(() => {
     let r = 8;
     for (const s of layout.nodes.values()) r = Math.max(r, Math.hypot(s.end[0], s.end[2]), s.end[1] * 0.8);
     for (const s of layout.limbs.values()) r = Math.max(r, Math.hypot(s.end[0], s.end[2]));
-    const d = Math.min(38, 9 + r * 1.35);
+    // Portrait screens need to stand further back to fit the crown's width.
+    const d = Math.min(48, (9 + r * 1.35) / Math.min(1, Math.pow(aspect, 0.75)));
     return {
       target: new THREE.Vector3(0, TRUNK_HEIGHT * 0.8, 0),
       pos: new THREE.Vector3(d * 0.55, TRUNK_HEIGHT * 0.8 + d * 0.28, d * 0.85),
     };
-  }, [layout]);
+  }, [layout, aspect]);
 
   const fly = (toT: THREE.Vector3, toP: THREE.Vector3) => {
     const c = controls.current;
