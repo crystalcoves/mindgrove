@@ -14,14 +14,29 @@ page.on("pageerror", (e) => console.log("[pageerror]", e.message));
 const t0 = Date.now();
 await page.goto(url);
 await page.waitForSelector(".row");
-console.log("crossOriginIsolated:", await page.evaluate(() => crossOriginIsolated), "cores:", await page.evaluate(() => navigator.hardwareConcurrency));
+console.log(
+  "crossOriginIsolated:",
+  await page.evaluate(() => crossOriginIsolated),
+  "cores:",
+  await page.evaluate(() => navigator.hardwareConcurrency),
+);
 await page.keyboard.press("Control+k");
 await page.keyboard.type("Transcribe a voice note");
 await page.keyboard.press("Enter");
 await page.waitForSelector(".v-drop");
 const tier = process.env.MODEL ?? "Fast";
 console.log("model tier:", tier);
-await page.click(`.v-opts .seg button:has-text('${tier}')`);
+const tierButton = page.locator(`.v-opts .seg button:has-text('${tier}')`);
+if (await tierButton.isDisabled()) {
+  // The app blocks tiers this device can't run (e.g. Best without a GPU).
+  const why = await page.textContent(".v-opts").catch(() => "");
+  console.log(`${tier} is blocked on this device: ${why}`);
+  await browser.close();
+  if (process.env.EXPECT_BLOCKED === "1") process.exit(0);
+  throw new Error(`${tier} is unexpectedly blocked`);
+}
+if (process.env.EXPECT_BLOCKED === "1") throw new Error(`${tier} should be blocked on this device`);
+await tierButton.click();
 await page.setInputFiles(".v-drop input[type=file]", file);
 let last = "";
 const timer = setInterval(async () => {
