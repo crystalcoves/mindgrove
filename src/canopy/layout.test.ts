@@ -4,7 +4,17 @@ import { layoutTree } from "./layout";
 
 const limb = (id: string, order: number): Limb => ({ id, name: id, color: "#fff", order, createdAt: 0 });
 const t = (id: string, parentId: string | null, limbId: string | null = null): Thought => ({
-  id, parentId, limbId, title: id, body: "", status: "seed", tags: [], order: 0, createdAt: 0, updatedAt: 0, touchedAt: 0,
+  id,
+  parentId,
+  limbId,
+  title: id,
+  body: "",
+  status: "seed",
+  tags: [],
+  order: 0,
+  createdAt: 0,
+  updatedAt: 0,
+  touchedAt: 0,
 });
 const byId = (ts: Thought[]) => Object.fromEntries(ts.map((x) => [x.id, x]));
 

@@ -40,7 +40,15 @@ export function demoSnapshot(ts: number): Snapshot {
 
   grow(
     [
-      ["Press / to drop a seed", "seed", undefined, { body: "Type a thought and hit **Enter**. Add `#tags` inline.\n\nSeeds wait here in the inbox until you place them on a limb.", age: 0 }],
+      [
+        "Press / to drop a seed",
+        "seed",
+        undefined,
+        {
+          body: "Type a thought and hit **Enter**. Add `#tags` inline.\n\nSeeds wait here in the inbox until you place them on a limb.",
+          age: 0,
+        },
+      ],
       ["Drag a seed onto a limb to plant it", "seed", undefined, { age: 0 }],
     ],
     null,
@@ -63,10 +71,20 @@ export function demoSnapshot(ts: number): Snapshot {
               ["Ctrl+K opens the command palette", "blooming", undefined, { tags: ["tips"] }],
             ],
           ],
-          ["Status: seed → growing → blooming → dormant → pruned", "growing", undefined, {
-            body: "Press **S** on a row to cycle status.\n\n- *Blooming* = it became an action, or it's done.\n- *Dormant* = parked on purpose.\n- *Pruned* = let go, kept for history.",
-          }],
-          ["Untouched thoughts wilt after a few weeks", "growing", undefined, { age: 40, body: "Wilting thoughts fade in the canopy. Open one to revive it — or prune it." }],
+          [
+            "Status: seed → growing → blooming → dormant → pruned",
+            "growing",
+            undefined,
+            {
+              body: "Press **S** on a row to cycle status.\n\n- *Blooming* = it became an action, or it's done.\n- *Dormant* = parked on purpose.\n- *Pruned* = let go, kept for history.",
+            },
+          ],
+          [
+            "Untouched thoughts wilt after a few weeks",
+            "growing",
+            undefined,
+            { age: 40, body: "Wilting thoughts fade in the canopy. Open one to revive it — or prune it." },
+          ],
         ],
         { body: "Trunk = you. Limbs = themes. Branches = thoughts. Twigs = follow-ups." },
       ],
@@ -95,7 +113,15 @@ export function demoSnapshot(ts: number): Snapshot {
 
   grow(
     [
-      ["Learn to cook five dinners by heart", "growing", [["Shakshuka", "blooming"], ["Dal", "growing"], ["Risotto", "seed"]]],
+      [
+        "Learn to cook five dinners by heart",
+        "growing",
+        [
+          ["Shakshuka", "blooming"],
+          ["Dal", "growing"],
+          ["Risotto", "seed"],
+        ],
+      ],
       ["Walk more", "seed", undefined, { age: 35 }],
     ],
     null,

@@ -155,12 +155,7 @@ export interface OutlineHeader {
 export type OutlineItem = OutlineRow | OutlineHeader;
 
 /** Flatten the tree into visible rows for the Grove outline. */
-export function outline(
-  thoughts: ById,
-  limbs: Limb[],
-  collapsed: Record<string, boolean>,
-  hidePruned: boolean,
-): OutlineItem[] {
+export function outline(thoughts: ById, limbs: Limb[], collapsed: Record<string, boolean>, hidePruned: boolean): OutlineItem[] {
   const idx = childrenIndex(thoughts);
   const out: OutlineItem[] = [];
   const visible = (t: Thought) => !hidePruned || t.status !== "pruned";

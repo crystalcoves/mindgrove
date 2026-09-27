@@ -67,7 +67,11 @@ export function exportMarkdown(s: Snapshot): MdFile[] {
 
   const used = new Set(["seeds"]);
   for (const limb of [...s.limbs].sort(byOrder)) {
-    const lines = [`# ${limb.name}`, `<!-- mindgrove:limb ${JSON.stringify({ id: limb.id, color: limb.color, order: limb.order, createdAt: limb.createdAt, name: limb.name })} -->`, ""];
+    const lines = [
+      `# ${limb.name}`,
+      `<!-- mindgrove:limb ${JSON.stringify({ id: limb.id, color: limb.color, order: limb.order, createdAt: limb.createdAt, name: limb.name })} -->`,
+      "",
+    ];
     renderBranch(`limb:${limb.id}`, 0, lines);
     const base = fileSafe(limb.name) || "limb";
     let name = base;
@@ -135,14 +139,14 @@ export function importMarkdown(files: MdFile[], ts = Date.now()): Snapshot {
         }
         flushBody();
         const depth = Math.floor(bullet[1].length / 2);
-        const parent = depth > 0 ? stack[Math.min(depth, stack.length) - 1] ?? null : null;
+        const parent = depth > 0 ? (stack[Math.min(depth, stack.length) - 1] ?? null) : null;
         const [t, outLinks] = parseBullet(bullet[2], ts);
         t.parentId = parent?.id ?? null;
         t.limbId = parent ? null : (limb?.id ?? null);
         const key = t.parentId ?? `root:${t.limbId}`;
         t.order = counters.get(key) ?? 0;
         counters.set(key, t.order + 1);
-        stack.length = (parent ? stack.indexOf(parent) + 1 : 0);
+        stack.length = parent ? stack.indexOf(parent) + 1 : 0;
         stack.push(t);
         thoughts.push(t);
         last = t;

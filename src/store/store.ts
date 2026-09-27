@@ -16,6 +16,7 @@ import type { Limb, Link, Settings, Snapshot, Status, Thought } from "../model/t
 import { demoSnapshot } from "./demo";
 
 export type View = "grove" | "canopy";
+export type PaletteMode = "go" | "link" | "move";
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "holo",
@@ -52,8 +53,11 @@ interface State {
   filters: Filters;
   collapsed: Record<string, boolean>;
   hidePruned: boolean;
+  /** True while the inline editor was opened on a brand-new thought (Enter chains another). */
+  editFlow: boolean;
   captureOpen: boolean;
   paletteOpen: boolean;
+  paletteMode: PaletteMode;
   settingsOpen: boolean;
   detailOpen: boolean;
   toasts: Toast[];
@@ -72,7 +76,10 @@ interface Actions {
   indent(id: string): void;
   outdent(id: string): void;
   nudge(id: string, dir: -1 | 1): void;
-  remove(id: string): void;
+  remove(id: string, opts?: { silent?: boolean }): void;
+  cycleStatus(id: string, dir?: 1 | -1): void;
+  /** Create an empty thought next to / under `id` and start editing it. */
+  sprout(id: string | null, where: "sibling" | "child"): string;
 
   addLimb(name: string, color?: string): Limb;
   updateLimb(id: string, patch: Partial<Omit<Limb, "id">>): void;
@@ -89,13 +96,13 @@ interface Actions {
   setView(v: View): void;
   toggleView(): void;
   select(id: string | null, opts?: { open?: boolean }): void;
-  setEditing(id: string | null): void;
+  setEditing(id: string | null, flow?: boolean): void;
   setFilters(patch: Partial<Filters>): void;
   clearFilters(): void;
   toggleCollapsed(key: string, value?: boolean): void;
   setHidePruned(v: boolean): void;
   openCapture(v: boolean): void;
-  openPalette(v: boolean): void;
+  openPalette(v: boolean, mode?: PaletteMode): void;
   openSettings(v: boolean): void;
   openDetail(v: boolean): void;
   toast(text: string, action?: Toast["action"]): void;
@@ -105,10 +112,10 @@ interface Actions {
 export type Store = State & Actions;
 
 const now = () => Date.now();
+let initOnce: Promise<void> | null = null;
 
 export const useStore = create<Store>()((set, get) => {
-  const siblings = (p: Place, thoughts = get().thoughts) =>
-    childrenIndex(thoughts).get(parentKey(p)) ?? [];
+  const siblings = (p: Place, thoughts = get().thoughts) => childrenIndex(thoughts).get(parentKey(p)) ?? [];
 
   const nextOrder = (p: Place, thoughts = get().thoughts) => {
     const sibs = siblings(p, thoughts);
@@ -140,31 +147,37 @@ export const useStore = create<Store>()((set, get) => {
     view: "grove",
     selectedId: null,
     editingId: null,
+    editFlow: false,
     filters: EMPTY_FILTERS,
     collapsed: {},
     hidePruned: true,
     captureOpen: false,
     paletteOpen: false,
+    paletteMode: "go",
     settingsOpen: false,
     detailOpen: false,
     toasts: [],
     births: {},
 
-    async init() {
-      const data = await loadAll();
-      let snap: Snapshot = data;
-      if (!data.seeded && data.thoughts.length === 0 && data.limbs.length === 0) {
-        snap = demoSnapshot(now());
-        db.replaceAll(snap);
-        db.setKV("seeded", true);
-      }
-      set({
-        ready: true,
-        thoughts: Object.fromEntries(snap.thoughts.map((t) => [t.id, t])),
-        limbs: Object.fromEntries(snap.limbs.map((l) => [l.id, l])),
-        links: Object.fromEntries(snap.links.map((l) => [l.id, l])),
-        settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}) },
-      });
+    init() {
+      // Idempotent: StrictMode and HMR may call this more than once.
+      initOnce ??= (async () => {
+        const data = await loadAll();
+        let snap: Snapshot = data;
+        if (!data.seeded && data.thoughts.length === 0 && data.limbs.length === 0) {
+          snap = demoSnapshot(now());
+          db.replaceAll(snap);
+          db.setKV("seeded", true);
+        }
+        set({
+          ready: true,
+          thoughts: Object.fromEntries(snap.thoughts.map((t) => [t.id, t])),
+          limbs: Object.fromEntries(snap.limbs.map((l) => [l.id, l])),
+          links: Object.fromEntries(snap.links.map((l) => [l.id, l])),
+          settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}) },
+        });
+      })();
+      return initOnce;
     },
 
     capture(text, place = {}) {
@@ -267,7 +280,7 @@ export const useStore = create<Store>()((set, get) => {
       ]);
     },
 
-    remove(id) {
+    remove(id, opts) {
       const { thoughts, links, selectedId } = get();
       const t = thoughts[id];
       if (!t) return;
@@ -297,7 +310,8 @@ export const useStore = create<Store>()((set, get) => {
       db.putThoughts(lifted);
       db.deleteLinks(deadLinks.map((l) => l.id));
 
-      get().toast(`Removed “${truncate(t.title, 40)}”`, {
+      if (opts?.silent) return;
+      get().toast(`Removed “${truncate(t.title || "untitled", 40)}”`, {
         label: "Undo",
         run: () => {
           putThoughts([t, ...kids]);
@@ -305,6 +319,41 @@ export const useStore = create<Store>()((set, get) => {
           db.putLinks(deadLinks);
         },
       });
+    },
+
+    cycleStatus(id, dir = 1) {
+      const t = get().thoughts[id];
+      if (!t) return;
+      const loop: Status[] = ["seed", "growing", "blooming", "dormant"];
+      const i = loop.indexOf(t.status);
+      const next = i === -1 ? "growing" : loop[(i + dir + loop.length) % loop.length];
+      get().setStatus(id, next);
+    },
+
+    sprout(id, where) {
+      const { thoughts } = get();
+      const ref = id ? thoughts[id] : null;
+      let t: Thought;
+      if (ref && where === "child") {
+        t = get().addThought({ title: "", parentId: ref.id, status: "growing" });
+        get().toggleCollapsed(ref.id, false);
+      } else if (ref) {
+        const sibs = siblings(ref);
+        const i = sibs.findIndex((x) => x.id === ref.id);
+        const next = sibs[i + 1];
+        const order = next ? (ref.order + next.order) / 2 : ref.order + 1;
+        t = get().addThought({
+          title: "",
+          parentId: ref.parentId,
+          limbId: ref.limbId,
+          order,
+          status: ref.status === "seed" ? "seed" : "growing",
+        });
+      } else {
+        t = get().addThought({ title: "" });
+      }
+      set({ selectedId: t.id, editingId: t.id, editFlow: true });
+      return t.id;
     },
 
     addLimb(name, color) {
@@ -349,9 +398,7 @@ export const useStore = create<Store>()((set, get) => {
 
     addLink(from, to) {
       if (from === to) return;
-      const exists = Object.values(get().links).some(
-        (l) => (l.from === from && l.to === to) || (l.from === to && l.to === from),
-      );
+      const exists = Object.values(get().links).some((l) => (l.from === from && l.to === to) || (l.from === to && l.to === from));
       if (exists) return;
       const link: Link = { id: uid(), from, to };
       set((s) => ({ links: { ...s.links, [link.id]: link } }));
@@ -417,14 +464,13 @@ export const useStore = create<Store>()((set, get) => {
       }
     },
 
-    setEditing: (editingId) => set({ editingId }),
+    setEditing: (editingId, flow = false) => set({ editingId, editFlow: flow }),
     setFilters: (patch) => set((s) => ({ filters: { ...s.filters, ...patch } })),
     clearFilters: () => set({ filters: EMPTY_FILTERS }),
-    toggleCollapsed: (key, value) =>
-      set((s) => ({ collapsed: { ...s.collapsed, [key]: value ?? !s.collapsed[key] } })),
+    toggleCollapsed: (key, value) => set((s) => ({ collapsed: { ...s.collapsed, [key]: value ?? !s.collapsed[key] } })),
     setHidePruned: (hidePruned) => set({ hidePruned }),
     openCapture: (captureOpen) => set({ captureOpen, paletteOpen: false }),
-    openPalette: (paletteOpen) => set({ paletteOpen, captureOpen: false }),
+    openPalette: (paletteOpen, mode = "go") => set({ paletteOpen, paletteMode: mode, captureOpen: false }),
     openSettings: (settingsOpen) => set({ settingsOpen }),
     openDetail: (detailOpen) => set({ detailOpen }),
 

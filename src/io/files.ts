@@ -102,7 +102,8 @@ export function unzip(buf: Uint8Array): MdFile[] {
     const size = view.getUint32(p + 18, true);
     const nameLen = view.getUint16(p + 26, true);
     const extraLen = view.getUint16(p + 28, true);
-    if (method !== 0 || flags & 0x08) throw new Error("Only Mindgrove-exported (uncompressed) zips can be imported — unzip it and import the .md files instead");
+    if (method !== 0 || flags & 0x08)
+      throw new Error("Only Mindgrove-exported (uncompressed) zips can be imported — unzip it and import the .md files instead");
     const name = dec.decode(buf.subarray(p + 30, p + 30 + nameLen));
     const start = p + 30 + nameLen + extraLen;
     if (/\.md$/i.test(name)) out.push({ name: name.split("/").pop()!, content: dec.decode(buf.subarray(start, start + size)) });
