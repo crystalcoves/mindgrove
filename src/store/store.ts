@@ -14,6 +14,7 @@ import {
 } from "../model/tree";
 import type { Limb, Link, Settings, Snapshot, Status, Thought } from "../model/types";
 import { demoSnapshot } from "./demo";
+import { pairKey } from "../model/suggest";
 
 export type View = "grove" | "canopy";
 export type PaletteMode = "go" | "link" | "move";
@@ -59,8 +60,11 @@ interface State {
   paletteOpen: boolean;
   paletteMode: PaletteMode;
   settingsOpen: boolean;
+  tendOpen: boolean;
   detailOpen: boolean;
   toasts: Toast[];
+  /** Suggested vines the user said no to, keyed by pairKey. */
+  dismissedVines: Record<string, boolean>;
   /** Ids born this session, with birth time, so the canopy can animate their growth. */
   births: Record<string, number>;
 }
@@ -84,9 +88,12 @@ interface Actions {
   addLimb(name: string, color?: string): Limb;
   updateLimb(id: string, patch: Partial<Omit<Limb, "id">>): void;
   removeLimb(id: string): void;
+  /** Put limb `id` before `beforeId` (or last). */
+  reorderLimb(id: string, beforeId: string | null): void;
 
   addLink(from: string, to: string): void;
   removeLink(id: string): void;
+  dismissVine(a: string, b: string): void;
 
   replaceAll(s: Snapshot): void;
   merge(s: Snapshot): void;
@@ -104,6 +111,7 @@ interface Actions {
   openCapture(v: boolean): void;
   openPalette(v: boolean, mode?: PaletteMode): void;
   openSettings(v: boolean): void;
+  openTend(v: boolean): void;
   openDetail(v: boolean): void;
   toast(text: string, action?: Toast["action"]): void;
   dismissToast(id: string): void;
@@ -155,9 +163,11 @@ export const useStore = create<Store>()((set, get) => {
     paletteOpen: false,
     paletteMode: "go",
     settingsOpen: false,
+    tendOpen: false,
     detailOpen: false,
     toasts: [],
     births: {},
+    dismissedVines: {},
 
     init() {
       // Idempotent: StrictMode and HMR may call this more than once.
@@ -175,6 +185,7 @@ export const useStore = create<Store>()((set, get) => {
           limbs: Object.fromEntries(snap.limbs.map((l) => [l.id, l])),
           links: Object.fromEntries(snap.links.map((l) => [l.id, l])),
           settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}) },
+          dismissedVines: data.dismissedVines,
         });
       })();
       return initOnce;
@@ -378,6 +389,21 @@ export const useStore = create<Store>()((set, get) => {
       db.putLimbs([next]);
     },
 
+    reorderLimb(id, beforeId) {
+      const all = Object.values(get().limbs).sort(byOrder);
+      const limb = get().limbs[id];
+      if (!limb || id === beforeId) return;
+      const rest = all.filter((l) => l.id !== id);
+      const i = beforeId ? rest.findIndex((l) => l.id === beforeId) : -1;
+      const next = [...rest];
+      next.splice(i === -1 ? rest.length : i, 0, limb);
+      // Renumber so orders stay small integers (they seed the canopy layout).
+      const changed = next.map((l, n) => ({ ...l, order: n })).filter((l) => l.order !== get().limbs[l.id].order);
+      if (!changed.length) return;
+      set((s) => ({ limbs: { ...s.limbs, ...Object.fromEntries(changed.map((l) => [l.id, l])) } }));
+      db.putLimbs(changed);
+    },
+
     removeLimb(id) {
       const { thoughts, limbs } = get();
       const limb = limbs[id];
@@ -413,6 +439,12 @@ export const useStore = create<Store>()((set, get) => {
         return { links: next };
       });
       db.deleteLinks([id]);
+    },
+
+    dismissVine(a, b) {
+      const dismissedVines = { ...get().dismissedVines, [pairKey(a, b)]: true };
+      set({ dismissedVines });
+      db.setKV("dismissedVines", dismissedVines);
     },
 
     replaceAll(s) {
@@ -472,6 +504,7 @@ export const useStore = create<Store>()((set, get) => {
     openCapture: (captureOpen) => set({ captureOpen, paletteOpen: false }),
     openPalette: (paletteOpen, mode = "go") => set({ paletteOpen, paletteMode: mode, captureOpen: false }),
     openSettings: (settingsOpen) => set({ settingsOpen }),
+    openTend: (tendOpen) => set({ tendOpen }),
     openDetail: (detailOpen) => set({ detailOpen }),
 
     toast(text, action) {

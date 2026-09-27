@@ -12,6 +12,8 @@ export function Grove() {
   const { items, filtering } = useVisibleItems();
   const [drop, setDrop] = useState<Drop>(null);
   const dragId = useRef<string | null>(null);
+  /** Limb being dragged by its header, to reorder limbs. */
+  const limbDrag = useRef<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const selectedId = useStore((s) => s.selectedId);
 
@@ -24,6 +26,7 @@ export function Grove() {
 
   const onDragEnd = () => {
     dragId.current = null;
+    limbDrag.current = null;
     setDrop(null);
   };
 
@@ -56,7 +59,9 @@ export function Grove() {
   const dropOnHead = (e: DragEvent, head: string) => {
     e.preventDefault();
     const id = dragId.current;
-    if (id) {
+    if (limbDrag.current && head !== "seeds") {
+      useStore.getState().reorderLimb(limbDrag.current, head);
+    } else if (id) {
       const st = useStore.getState();
       st.move(id, head === "seeds" ? { parentId: null, limbId: null } : { parentId: null, limbId: head });
       st.toggleCollapsed(head === "seeds" ? "seeds" : `limb:${head}`, false);
@@ -93,8 +98,9 @@ export function Grove() {
               key={item.kind === "limb" ? item.limb!.id : "seeds"}
               item={item}
               dropping={!!drop && "head" in drop && drop.head === (item.limb?.id ?? "seeds")}
+              onLimbDragStart={(id) => (limbDrag.current = id)}
               onDragOver={(e) => {
-                if (!dragId.current) return;
+                if (!dragId.current && !(limbDrag.current && item.limb && item.limb.id !== limbDrag.current)) return;
                 e.preventDefault();
                 setDrop({ head: item.limb?.id ?? "seeds" });
               }}
@@ -231,9 +237,11 @@ function Header({
   dropping,
   onDragOver,
   onDrop,
+  onLimbDragStart,
 }: {
   item: Item & { kind: "limb" | "seeds" };
   dropping: boolean;
+  onLimbDragStart: (id: string) => void;
   onDragOver: (e: DragEvent) => void;
   onDrop: (e: DragEvent) => void;
 }) {
@@ -257,6 +265,14 @@ function Header({
         className={`o-head${dropping ? " drop" : ""}`}
         style={{ "--c": color } as React.CSSProperties}
         onClick={() => toggle(key)}
+        draggable={!!limb}
+        onDragStart={(e) => {
+          if (!limb) return;
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", limb.name);
+          onLimbDragStart(limb.id);
+        }}
+        title={limb ? "Drag onto another limb to reorder" : undefined}
         onDragOver={onDragOver}
         onDrop={onDrop}
         role="treeitem"
@@ -304,8 +320,11 @@ const RowView = memo(function RowView({ row, drop, onDragStart, onDragOver, onDr
   const wilting = isWilting(t, Date.now(), wiltWeeks);
   const st = useStore.getState;
 
+  // Branches (top-level thoughts) vs sub-branches (follow-ups) vs deeper twigs.
+  const level = !t.parentId ? "lv-branch" : row.depth >= 2 ? "lv-twig" : "lv-sub";
   const cls = [
     "row",
+    level,
     selected && "sel",
     wilting && "wilt",
     t.status === "pruned" && "pruned",
@@ -351,7 +370,7 @@ const RowView = memo(function RowView({ row, drop, onDragStart, onDragOver, onDr
           if (row.hasChildren) st().toggleCollapsed(t.id);
         }}
       >
-        {row.hasChildren ? (row.collapsed ? "▸" : "▾") : "●"}
+        {row.hasChildren ? (row.collapsed ? "▸" : "▾") : !t.parentId ? "●" : "◆"}
       </button>
       <button
         className="status"

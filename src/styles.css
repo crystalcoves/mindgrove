@@ -1615,3 +1615,145 @@ select.input {
     min-width: 52px;
   }
 }
+
+/* ---- Canopy replay ------------------------------------------------------ */
+.c-replay {
+  position: absolute;
+  left: 50%;
+  bottom: 92px;
+  transform: translateX(-50%);
+  z-index: 7;
+  width: min(560px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.c-replay .rp-mid {
+  flex: 1;
+  min-width: 0;
+}
+.c-replay .rp-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+.c-replay input[type="range"] {
+  width: 100%;
+  accent-color: var(--primary);
+}
+.c-legend .lg-shape {
+  color: var(--dim);
+}
+
+/* ---- Branch vs sub-branch ------------------------------------------------- */
+/* Branches: full weight, a short limb-coloured spine. Sub-branches: lighter,
+   slightly smaller and tinted toward the limb colour; twigs a touch more so. */
+.row.lv-branch {
+  min-height: 36px;
+}
+.row.lv-branch .title {
+  font-weight: 600;
+}
+.row.lv-branch::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--c);
+  opacity: 0.5;
+}
+.row.lv-sub .title,
+.row.lv-twig .title {
+  font-size: 13.5px;
+  color: color-mix(in srgb, var(--text) 84%, var(--c));
+}
+.row.lv-twig .title {
+  font-size: 13px;
+  color: color-mix(in srgb, var(--text) 72%, var(--c));
+}
+.row.lv-sub .caret.leaf,
+.row.lv-twig .caret.leaf {
+  font-size: 7px;
+}
+
+/* ---- Tend ------------------------------------------------------------------ */
+.tend {
+  width: min(680px, 100%);
+}
+.tend-row {
+  padding: 9px 4px;
+}
+.tend-row .grow {
+  white-space: normal;
+}
+.tend-row.done {
+  opacity: 0.55;
+}
+.tend-acts {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+@media (max-width: 720px) {
+  .tend-row {
+    flex-wrap: wrap;
+  }
+  .tend-acts {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* ---- Vine suggestions ---------------------------------------------------- */
+.suggest {
+  margin-top: 4px;
+  padding: 6px 8px 2px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius);
+}
+.suggest-h {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mute);
+  padding: 2px 4px;
+}
+.suggest-item .grow {
+  white-space: normal;
+}
+
+/* ---- Voice capture --------------------------------------------------------- */
+.cap-interim {
+  margin-top: 8px;
+  font: italic 14px var(--sans);
+  color: var(--dim);
+}
+.chip.mic.on {
+  --c: #ff6f6f;
+  animation: micPulse 1.2s ease-in-out infinite;
+}
+@keyframes micPulse {
+  50% {
+    box-shadow: 0 0 14px rgba(255, 111, 111, 0.5);
+  }
+}
+
+.c-legend {
+  max-width: calc(50% - 270px);
+  row-gap: 6px;
+}
+@media (max-width: 1100px) {
+  .c-legend {
+    display: none;
+  }
+}
+.view-canopy .toasts {
+  bottom: 96px;
+}

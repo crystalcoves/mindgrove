@@ -6,8 +6,10 @@ import { Detail } from "./ui/Detail";
 import { Hud } from "./ui/Hud";
 import { Palette } from "./ui/Palette";
 import { SettingsPanel } from "./ui/SettingsPanel";
+import { Tend } from "./ui/Tend";
 import { THEMES } from "./ui/themes";
 import { useHotkeys } from "./ui/useHotkeys";
+import { shareToText } from "./lib/share";
 
 // three.js only loads when the canopy is first opened, keeping the Grove instant.
 const Canopy = lazy(() => import("./canopy/Canopy"));
@@ -20,7 +22,7 @@ export default function App() {
   useHotkeys();
 
   useEffect(() => {
-    void useStore.getState().init();
+    void useStore.getState().init().then(receiveShare);
   }, []);
 
   useEffect(() => {
@@ -50,6 +52,7 @@ export default function App() {
       <Capture />
       <Palette />
       <SettingsPanel />
+      <Tend />
       <Toasts />
     </div>
   );
@@ -78,4 +81,15 @@ function Toasts() {
       ))}
     </div>
   );
+}
+
+/** Handle "Share → Mindgrove" (PWA share target): drop it in as a seed, then clean the URL. */
+function receiveShare() {
+  const params = new URLSearchParams(location.search);
+  const text = shareToText(params);
+  if (!text) return;
+  history.replaceState(null, "", location.pathname);
+  const st = useStore.getState();
+  const id = st.capture(text);
+  if (id) st.toast("Shared into your seeds", { label: "Open", run: () => useStore.getState().select(id, { open: true }) });
 }

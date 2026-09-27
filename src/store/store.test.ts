@@ -127,3 +127,21 @@ describe("tree editing", () => {
     expect(rows.some((r) => r.kind === "thought" && r.thought.id === b)).toBe(true);
   });
 });
+
+describe("limbs", () => {
+  it("reorders limbs", () => {
+    const a = s().addLimb("A");
+    s().addLimb("B");
+    const c = s().addLimb("C");
+    const names = () =>
+      Object.values(s().limbs)
+        .sort((x, y) => x.order - y.order)
+        .map((l) => l.name);
+    s().reorderLimb(c.id, a.id);
+    expect(names()).toEqual(["C", "A", "B"]);
+    s().reorderLimb(c.id, null);
+    expect(names()).toEqual(["A", "B", "C"]);
+    s().reorderLimb(a.id, c.id);
+    expect(names()).toEqual(["B", "A", "C"]);
+  });
+});

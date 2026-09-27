@@ -32,7 +32,7 @@ export function useHotkeys() {
         return;
       }
 
-      const overlay = st.captureOpen || st.paletteOpen || st.settingsOpen;
+      const overlay = st.captureOpen || st.paletteOpen || st.settingsOpen || st.tendOpen;
       if (overlay || isTyping(e) || st.editingId) return;
 
       if (k === "Escape") {
@@ -62,6 +62,10 @@ export function useHotkeys() {
           return;
         case "?":
           st.openSettings(true);
+          return;
+        case "w":
+        case "W":
+          st.openTend(true);
           return;
         case "ArrowDown":
         case "j":

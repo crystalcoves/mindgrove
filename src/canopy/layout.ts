@@ -80,7 +80,8 @@ function branchFrom(parent: Segment, r: () => number, depth: number, limbId: str
   // Trees reach for the light.
   dir = norm(add(dir, [0, 0.35, 0]));
   const len = Math.max(0.55, 2.3 * Math.pow(0.74, depth) * (0.8 + r() * 0.4));
-  const radius = Math.max(0.018, 0.1 * Math.pow(0.7, depth));
+  // Branches are noticeably thicker than the sub-branches that fork off them.
+  const radius = depth === 0 ? 0.11 : Math.max(0.018, 0.085 * Math.pow(0.66, depth));
   return seg(start, dir, len, radius, depth, limbId);
 }
 

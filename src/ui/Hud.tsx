@@ -103,14 +103,7 @@ export function Hud() {
           <b>{stats.seeds}</b>
           <span>SEEDS</span>
         </button>
-        <button
-          className={`stat${stats.wilting ? " warn" : ""}`}
-          onClick={() => {
-            st().setFilters({ wilting: true });
-            st().setView("grove");
-          }}
-          title="Untouched for a while"
-        >
+        <button className={`stat${stats.wilting ? " warn" : ""}`} onClick={() => st().openTend(true)} title="Untouched for a while">
           <b>{stats.wilting}</b>
           <span>WILTING</span>
         </button>

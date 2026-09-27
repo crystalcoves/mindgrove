@@ -38,6 +38,7 @@ const KEYS: [string, string[]][] = [
   ["Capture (anywhere)", [MOD, "Space"]],
   ["Command palette", [MOD, "K"]],
   ["Grove ⇄ Canopy", ["V"]],
+  ["Tend wilting thoughts", ["W"]],
   ["Move selection", ["↑", "↓"]],
   ["Fold / unfold · parent", ["←", "→"]],
   ["Edit title", ["Enter"]],
@@ -156,8 +157,24 @@ export function SettingsPanel() {
             <div className="limbs-edit">
               {Object.values(limbs)
                 .sort(byOrder)
-                .map((l) => (
+                .map((l, i, all) => (
                   <div key={l.id} className="limb-row">
+                    <button
+                      className="icon-btn"
+                      disabled={i === 0}
+                      onClick={() => st().reorderLimb(l.id, all[i - 1].id)}
+                      aria-label={`Move ${l.name} up`}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      className="icon-btn"
+                      disabled={i === all.length - 1}
+                      onClick={() => st().reorderLimb(l.id, all[i + 2]?.id ?? null)}
+                      aria-label={`Move ${l.name} down`}
+                    >
+                      ↓
+                    </button>
                     <input
                       type="color"
                       value={l.color}

@@ -21,6 +21,8 @@ export default defineConfig({
         display: "standalone",
         start_url: base,
         scope: base,
+        // Android/ChromeOS: "Share → Mindgrove" drops the shared text in as a seed.
+        share_target: { action: base, method: "GET", params: { title: "title", text: "text", url: "url" } },
         icons: [
           { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
         ],

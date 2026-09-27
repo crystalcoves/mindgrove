@@ -121,6 +121,7 @@ function PaletteBox() {
           if (name?.trim()) st().addLimb(name.trim());
         },
       },
+      { id: "c-tend", group: "Actions", icon: "❦", title: "Tend wilting thoughts…", keys: "W", run: () => st().openTend(true) },
       { id: "c-wilt", group: "Filters", icon: "❦", title: "Show wilting thoughts", run: () => st().setFilters({ wilting: true }) },
       ...STATUSES.map((s) => ({
         id: `f-${s}`,

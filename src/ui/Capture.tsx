@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { burstEl } from "../lib/fx";
 import { MOD } from "../lib/keys";
+import { listen, voiceSupported } from "../lib/voice";
 import { parseCapture } from "../model/tree";
 import { truncate, useStore } from "../store/store";
 
@@ -17,15 +18,46 @@ function CaptureBox() {
   const [asFollowUp, setAsFollowUp] = useState(false);
   const [count, setCount] = useState(0);
   const input = useRef<HTMLInputElement>(null);
-  const close = () => useStore.getState().openCapture(false);
+  const [listening, setListening] = useState(false);
+  const [interim, setInterim] = useState("");
+  const stopVoice = useRef<(() => void) | null>(null);
+  const close = () => {
+    stopVoice.current?.();
+    useStore.getState().openCapture(false);
+  };
 
   useEffect(() => {
     input.current?.focus();
+    return () => stopVoice.current?.();
   }, []);
+
+  const toggleVoice = () => {
+    if (listening) {
+      stopVoice.current?.();
+      return;
+    }
+    const before = text ? text.replace(/\s+$/, "") + " " : "";
+    setListening(true);
+    stopVoice.current = listen(
+      (final, partial) => {
+        setText(before + final);
+        setInterim(partial);
+      },
+      (error) => {
+        setListening(false);
+        setInterim("");
+        stopVoice.current = null;
+        input.current?.focus();
+        if (error && error !== "no-speech" && error !== "aborted")
+          useStore.getState().toast(error === "not-allowed" ? "Microphone permission was denied" : `Voice capture stopped (${error})`);
+      },
+    );
+  };
 
   const { tags } = parseCapture(text);
 
   const submit = (keepOpen: boolean) => {
+    stopVoice.current?.();
     const st = useStore.getState();
     const id = st.capture(text, asFollowUp && selected ? { parentId: selected.id } : {});
     if (!id) return;
@@ -50,7 +82,7 @@ function CaptureBox() {
           ref={input}
           className="cap-in"
           value={text}
-          placeholder="What's on your mind?"
+          placeholder={listening ? "Listening…" : "What's on your mind?"}
           aria-label="Thought"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -66,6 +98,7 @@ function CaptureBox() {
             }
           }}
         />
+        {interim && <div className="cap-interim">{interim}…</div>}
         <div className="cap-tags">
           {tags.map((t) => (
             <span key={t} className="tag">
@@ -79,6 +112,17 @@ function CaptureBox() {
           )}
         </div>
         <div className="cap-row">
+          {voiceSupported() && (
+            <button
+              className={`chip mic${listening ? " on" : ""}`}
+              onClick={toggleVoice}
+              aria-pressed={listening}
+              title={listening ? "Stop listening" : "Speak your thought"}
+            >
+              <i>{listening ? "◉" : "🎙"}</i>
+              {listening ? "Listening — tap to stop" : "Voice"}
+            </button>
+          )}
           <span className="grow" />
           {selected && (
             <button className={`chip${asFollowUp ? " on" : ""}`} onClick={() => setAsFollowUp((v) => !v)} title="Tab toggles">

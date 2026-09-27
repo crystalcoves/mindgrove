@@ -1,9 +1,10 @@
 import { Canvas } from "@react-three/fiber";
-import { Component, useMemo, useState, type ReactNode } from "react";
+import { Component, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "../store/store";
 import { STATUS_META } from "../model/types";
 import { STATUS_COLORS, THEMES } from "../ui/themes";
 import { LabelLayer } from "./labels";
+import { replay, useReplay } from "./replay";
 import { Scene, type CanopyOptions } from "./Scene";
 
 export default function Canopy() {
@@ -14,17 +15,27 @@ export default function Canopy() {
   const limbs = useStore((s) => s.limbs);
   const links = useStore((s) => s.links);
   const st = useStore.getState;
+  const replaying = useReplay((s) => s.active);
+  // Leaving the canopy ends any replay.
+  useEffect(() => () => replay.stop(), []);
+
+  const startReplay = () => {
+    const times = [...Object.values(thoughts).map((t) => t.createdAt), ...Object.values(limbs).map((l) => l.createdAt)];
+    if (!times.length) return;
+    const from = Math.min(...times) - 60_000;
+    replay.start(from, Date.now(), !reduced);
+  };
 
   const counts = useMemo(() => {
     const living = Object.values(thoughts).filter((t) => t.status !== "pruned").length;
-    return { living, limbs: Object.keys(limbs).length, vines: Object.keys(links).length };
+    return { living, total: Object.keys(thoughts).length, limbs: Object.keys(limbs).length, vines: Object.keys(links).length };
   }, [thoughts, limbs, links]);
 
   return (
     <div className={`canopy${reduced ? "" : " reveal"}`}>
       <GLBoundary>
         <Canvas
-          dpr={[1, 1.75]}
+          dpr={[1, counts.total > 2000 ? 1.25 : 1.75]}
           camera={{ position: [10, 9, 16], fov: 45, near: 0.1, far: 200 }}
           gl={{ antialias: true, powerPreference: "high-performance" }}
           style={{ background: THEMES[theme].scene.bg }}
@@ -56,7 +67,11 @@ export default function Canopy() {
           <i />
           WILTING
         </span>
+        <span className="lg-shape">● BRANCH</span>
+        <span className="lg-shape">◆ SUB-BRANCH</span>
       </div>
+
+      {replaying && <ReplayBar />}
 
       <nav className="c-dock" aria-label="Canopy controls">
         <button onClick={() => setOpts((o) => ({ ...o, recenter: o.recenter + 1 }))} title="Recenter the view">
@@ -79,6 +94,14 @@ export default function Canopy() {
         >
           <b>Aa</b>
           <span>LABELS</span>
+        </button>
+        <button
+          className={replaying ? "on" : ""}
+          onClick={() => (replaying ? replay.stop() : startReplay())}
+          title="Replay your tree growing over time"
+        >
+          <b>◷</b>
+          <span>REPLAY</span>
         </button>
         <button onClick={() => st().openCapture(true)} title="Capture (/)">
           <b>✦</b>
@@ -113,4 +136,38 @@ class GLBoundary extends Component<{ children: ReactNode }, { failed: boolean }>
       );
     return this.props.children;
   }
+}
+
+function ReplayBar() {
+  const { t, from, to, playing } = useReplay();
+  const thoughts = useStore((s) => s.thoughts);
+  const grown = useMemo(() => Object.values(thoughts).filter((x) => x.createdAt <= t).length, [thoughts, t]);
+  const date = new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return (
+    <div className="c-replay panel in" role="group" aria-label="Growth replay">
+      <button className="icon-btn" onClick={replay.toggle} aria-label={playing ? "Pause" : "Play"}>
+        {playing ? "❚❚" : "▶"}
+      </button>
+      <div className="rp-mid">
+        <div className="rp-meta">
+          <span className="label amber">Growth rings</span>
+          <span className="mono">
+            {date} · {grown} thought{grown === 1 ? "" : "s"}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={from}
+          max={to}
+          step={Math.max(1, Math.round((to - from) / 1000))}
+          value={t}
+          onChange={(e) => replay.seek(Number(e.target.value))}
+          aria-label="Replay time"
+        />
+      </div>
+      <button className="icon-btn" onClick={replay.stop} aria-label="Close replay" title="Back to today">
+        ✕
+      </button>
+    </div>
+  );
 }

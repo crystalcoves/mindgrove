@@ -6,6 +6,7 @@ import { ancestors, byOrder, isWilting, parseCapture } from "../model/tree";
 import { STATUSES, STATUS_META, type Thought } from "../model/types";
 import { useStore } from "../store/store";
 import { STATUS_COLORS } from "./themes";
+import { suggestVines } from "../model/suggest";
 
 export function Detail({ floating }: { floating?: boolean }) {
   const id = useStore((s) => s.selectedId);
@@ -194,6 +195,7 @@ function DetailBody({ t }: { t: Thought }) {
             );
           })}
         </div>
+        <SuggestedVines t={t} />
       </section>
 
       <section className="d-sec">
@@ -378,5 +380,37 @@ function QuickAdd({ placeholder, onAdd }: { placeholder: string; onAdd: (text: s
         }
       }}
     />
+  );
+}
+
+function SuggestedVines({ t }: { t: Thought }) {
+  const thoughts = useStore((s) => s.thoughts);
+  const limbs = useStore((s) => s.limbs);
+  const links = useStore((s) => s.links);
+  const dismissed = useStore((s) => s.dismissedVines);
+  const list = useMemo(() => suggestVines(thoughts, Object.values(links), t.id, dismissed), [thoughts, links, t.id, dismissed]);
+  if (!list.length) return null;
+  const st = useStore.getState;
+  return (
+    <div className="suggest">
+      <div className="suggest-h mono">Maybe related</div>
+      {list.map(({ thought: o, reasons }) => (
+        <div key={o.id} className="list-item suggest-item" style={{ "--c": limbColorOf(thoughts, limbs, o) } as React.CSSProperties}>
+          <span style={{ color: "var(--c)", opacity: 0.6 }}>⟿</span>
+          <span className="grow" onClick={() => st().select(o.id, { open: true })} title={o.title}>
+            {o.title || "untitled"}
+            <small className="crumb" style={{ display: "block" }}>
+              {reasons.join(" · ")}
+            </small>
+          </span>
+          <button className="btn small" onClick={() => st().addLink(t.id, o.id)} title="Grow this vine">
+            + Vine
+          </button>
+          <button className="x" onClick={() => st().dismissVine(t.id, o.id)} aria-label="Not related" title="Not related">
+            ✕
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }

@@ -10,6 +10,7 @@ import type { Thought } from "../model/types";
 import { useStore } from "../store/store";
 import { THEMES } from "../ui/themes";
 import { add, layoutTree, scale, TRUNK_HEIGHT, type Layout, type Segment, type V3 } from "./layout";
+import { replay, replayGrowth, useReplay } from "./replay";
 import { LabelProjector, usePublishLabels, type LabelSpec } from "./labels";
 import { branchFragment, branchVertex, groundFragment, groundVertex, sporeFragment, sporeVertex } from "./shaders";
 
@@ -19,6 +20,7 @@ const tmpQ = new THREE.Quaternion();
 const tmpV = new THREE.Vector3();
 const tmpS = new THREE.Vector3();
 const tmpC = new THREE.Color();
+const WHITE = new THREE.Color(1, 1, 1);
 
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -42,6 +44,8 @@ interface BranchEntry {
   color: THREE.Color;
   fade: number;
   delay: number;
+  /** Creation time, for replay; 0 = always present (trunk, roots). */
+  bornAt: number;
 }
 
 interface NodeEntry {
@@ -52,6 +56,8 @@ interface NodeEntry {
   delay: number;
   seed: boolean;
   phase: number;
+  depth: number;
+  bornAt: number;
 }
 
 /** Layout only depends on structure, so typing in a title doesn't re-grow the tree. */
@@ -129,7 +135,7 @@ export function Scene({ opts }: { opts: CanopyOptions }) {
   const { branches, nodes, maxDelay } = useMemo(() => {
     const now = Date.now();
     const trunkColor = new THREE.Color(theme.trunk).multiplyScalar(0.75);
-    const branches: BranchEntry[] = [{ id: "trunk", seg: layout.trunk, color: trunkColor, fade: 0, delay: 0 }];
+    const branches: BranchEntry[] = [{ id: "trunk", seg: layout.trunk, color: trunkColor, fade: 0, delay: 0, bornAt: 0 }];
     // Roots: decorative, seeded so they never change.
     const r = rng("roots");
     for (let i = 0; i < 6; i++) {
@@ -145,6 +151,7 @@ export function Scene({ opts }: { opts: CanopyOptions }) {
         color: trunkColor.clone().multiplyScalar(0.55),
         fade: 0,
         delay: 0.05,
+        bornAt: 0,
       });
     }
     for (const l of Object.values(limbs)) {
@@ -156,6 +163,7 @@ export function Scene({ opts }: { opts: CanopyOptions }) {
           color: new THREE.Color(l.color).multiplyScalar(0.95),
           fade: 0,
           delay: 0.35 + (l.order % 8) * 0.06,
+          bornAt: l.createdAt,
         });
     }
     const nodes: NodeEntry[] = [];
@@ -175,28 +183,53 @@ export function Scene({ opts }: { opts: CanopyOptions }) {
         c.lerp(new THREE.Color(grey, grey, grey), fade).multiplyScalar(1 - 0.6 * fade);
       }
       if (!seed) {
-        const bc = new THREE.Color(lc).multiplyScalar(t.status === "dormant" ? 0.45 : 0.85);
-        branches.push({ id: t.id, seg, color: bc, fade, delay });
+        // Branches carry the limb's colour; sub-branches are a paler, cooler
+        // tint of it so the two levels read apart at a glance.
+        const bc = new THREE.Color(lc);
+        if (depth > 0) bc.offsetHSL(0.035, -0.12, 0).lerp(WHITE, 0.28);
+        bc.multiplyScalar((t.status === "dormant" ? 0.5 : 1) * (depth > 0 ? 0.72 : 0.95));
+        branches.push({ id: t.id, seg, color: bc, fade, delay, bornAt: t.createdAt });
       }
+      if (!seed && depth > 0 && t.status !== "blooming") c.lerp(WHITE.clone().multiplyScalar(2), 0.18);
       const size = seed
         ? 0.08
-        : { seed: 0.07, growing: 0.085, blooming: 0.15, dormant: 0.065, pruned: 0 }[t.status] * Math.max(0.55, Math.pow(0.9, depth)) + 0.02;
-      nodes.push({ id: t.id, pos: seg.end, color: c, size, delay: delay + 0.6, seed, phase: (hash32(t.id) % 1000) / 159 });
+        : { seed: 0.07, growing: 0.085, blooming: 0.15, dormant: 0.065, pruned: 0 }[t.status] *
+            (depth > 0 ? Math.max(0.5, 0.8 * Math.pow(0.9, depth - 1)) : 1.1) +
+          0.02;
+      nodes.push({
+        id: t.id,
+        pos: seg.end,
+        color: c,
+        size,
+        delay: delay + 0.6,
+        seed,
+        phase: (hash32(t.id) % 1000) / 159,
+        depth,
+        bornAt: t.createdAt,
+      });
     }
     return { branches, nodes, maxDelay: maxDelay + 1.6 };
   }, [layout, visible, limbs, theme, settings.wiltWeeks, limbColorOf]);
 
-  const growth = (id: string, delay: number, now: number) => {
+  const growth: GrowthFn = (e, now) => {
+    const rp = useReplay.getState();
+    if (rp.active) return replayGrowth(e.bornAt, rp.t, rp.window);
     if (!motion) return 1;
-    let g = clamp01(((now - mountAt) / 1000 - delay) / 0.9);
-    const born = useStore.getState().births[id];
+    let g = clamp01(((now - mountAt) / 1000 - e.delay) / 0.9);
+    const born = useStore.getState().births[e.id];
     if (born) g = Math.min(g, clamp01((now - born) / 1100));
     return g;
   };
+  // Branch-level buds are round; sub-branch buds are faceted diamonds.
+  const branchNodes = useMemo(() => nodes.filter((n) => n.seed || n.depth === 0), [nodes]);
+  const twigNodes = useMemo(() => nodes.filter((n) => !n.seed && n.depth > 0), [nodes]);
+  const replaying = useReplay((s) => s.active);
 
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const selectedId = useStore((s) => s.selectedId);
-  const selected = selectedId ? nodeById.get(selectedId) : undefined;
+  const replayingNow = useReplay((s) => s.active);
+  // During replay the selection may not exist yet, so don't mark it.
+  const selected = selectedId && !replayingNow ? nodeById.get(selectedId) : undefined;
   const hoveredNode = hovered ? nodeById.get(hovered) : undefined;
 
   return (
@@ -205,20 +238,33 @@ export function Scene({ opts }: { opts: CanopyOptions }) {
       <fog attach="fog" args={[theme.fog, 22, 60]} />
       <Ground color={theme.grid} motion={motion} />
       <Branches entries={branches} growth={growth} motion={motion} maxDelay={maxDelay} mountAt={mountAt} />
-      <Nodes
-        entries={nodes}
-        growth={growth}
-        motion={motion}
-        maxDelay={maxDelay}
-        mountAt={mountAt}
-        selectedId={selectedId}
-        hoveredId={hovered}
-        onHover={setHovered}
-      />
-      <Vines links={Object.values(links)} nodes={nodeById} color={theme.vine} motion={motion} selectedId={selectedId} />
+      {[branchNodes, twigNodes].map((list, i) => (
+        <Nodes
+          key={i}
+          shape={i === 0 ? "bud" : "diamond"}
+          detail={nodes.length > 1500 ? 1 : 2}
+          entries={list}
+          growth={growth}
+          motion={motion}
+          maxDelay={maxDelay}
+          mountAt={mountAt}
+          selectedId={selectedId}
+          hoveredId={hovered}
+          onHover={setHovered}
+        />
+      ))}
+      <ReplayDriver />
+      {!replaying && <Vines links={Object.values(links)} nodes={nodeById} color={theme.vine} motion={motion} selectedId={selectedId} />}
       <Spores color={theme.particle} motion={motion} level={settings.particles} />
       {selected && <SelectionRing pos={selected.pos} size={selected.size} color={theme.bloom} motion={motion} />}
-      <Labels opts={opts} layout={layout} nodes={nodes} hovered={hoveredNode} selected={selected} limbColorOf={limbColorOf} />
+      <Labels
+        opts={replaying ? { ...opts, labels: false } : opts}
+        layout={layout}
+        nodes={nodes}
+        hovered={hoveredNode}
+        selected={selected}
+        limbColorOf={limbColorOf}
+      />
       <CameraRig
         focus={selected?.pos ?? null}
         autoRotate={opts.autoRotate && !!motion}
@@ -236,7 +282,23 @@ export function Scene({ opts }: { opts: CanopyOptions }) {
 
 // ---- branches (instanced holo cylinders) -----------------------------------
 
-type GrowthFn = (id: string, delay: number, now: number) => number;
+type GrowthFn = (e: { id: string; delay: number; bornAt: number }, now: number) => number;
+
+function ReplayDriver() {
+  useFrame((_, dt) => replay.tick(Math.min(dt, 0.25)));
+  return null;
+}
+
+/** True while the scene must redraw every frame for replay (plus one frame after a change). */
+function useReplayDirty() {
+  const seen = useRef(-1);
+  return () => {
+    const v = useReplay.getState().v;
+    if (v === seen.current) return false;
+    seen.current = v;
+    return true;
+  };
+}
 
 function useCapacity(n: number) {
   const [cap, setCap] = useState(() => Math.max(256, Math.ceil(n * 1.5)));
@@ -262,7 +324,7 @@ function Branches({
   const cap = useCapacity(entries.length);
   const mesh = useRef<THREE.InstancedMesh>(null);
   const geometry = useMemo(() => {
-    const g = new THREE.CylinderGeometry(0.6, 1, 1, 10, 1, true);
+    const g = new THREE.CylinderGeometry(0.6, 1, 1, cap > 3000 ? 6 : 10, 1, true);
     g.translate(0, 0.5, 0);
     g.setAttribute("aColor", new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3));
     g.setAttribute("aFade", new THREE.InstancedBufferAttribute(new Float32Array(cap), 1));
@@ -298,6 +360,7 @@ function Branches({
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   const lastBirth = useStore((s) => Math.max(0, ...entries.map((e) => s.births[e.id] ?? 0)));
+  const replayDirty = useReplayDirty();
 
   useFrame(({ clock }) => {
     material.uniforms.uTime.value = clock.elapsedTime;
@@ -306,11 +369,12 @@ function Branches({
     if (!m) return;
     const now = performance.now();
     const animating = motion && ((now - mountAt) / 1000 < maxDelay || now - lastBirth < 1300);
+    if (replayDirty()) dirty.current = true;
     if (!animating && !dirty.current) return;
     dirty.current = false;
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i];
-      const g = easeOut(growth(e.id, e.delay, now));
+      const g = easeOut(growth(e, now));
       const len = Math.hypot(e.seg.end[0] - e.seg.start[0], e.seg.end[1] - e.seg.start[1], e.seg.end[2] - e.seg.start[2]);
       tmpQ.setFromUnitVectors(UP, tmpV.set(e.seg.dir[0], e.seg.dir[1], e.seg.dir[2]));
       const r = e.seg.radius * (0.3 + 0.7 * g);
@@ -329,6 +393,8 @@ function Branches({
 // ---- nodes (glowing buds, seeds and blossoms) ---------------------------------
 
 interface NodesProps {
+  shape: "bud" | "diamond";
+  detail: number;
   entries: NodeEntry[];
   growth: GrowthFn;
   motion: number;
@@ -339,11 +405,16 @@ interface NodesProps {
   onHover: (id: string | null) => void;
 }
 
-function Nodes({ entries, growth, motion, maxDelay, mountAt, selectedId, hoveredId, onHover }: NodesProps) {
+function Nodes({ shape, detail, entries, growth, motion, maxDelay, mountAt, selectedId, hoveredId, onHover }: NodesProps) {
   const cap = useCapacity(entries.length);
   const mesh = useRef<THREE.InstancedMesh>(null);
   const pick = useRef<THREE.InstancedMesh>(null);
-  const geometry = useMemo(() => new THREE.IcosahedronGeometry(1, 2), []);
+  const geometry = useMemo(
+    () => (shape === "bud" ? new THREE.IcosahedronGeometry(1, detail) : new THREE.OctahedronGeometry(1.25, 0)),
+    [shape, detail],
+  );
+  const pickGeometry = useMemo(() => new THREE.IcosahedronGeometry(1, 0), []);
+  const replayDirty = useReplayDirty();
   const material = useMemo(
     () => new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
     [],
@@ -378,12 +449,13 @@ function Nodes({ entries, growth, motion, maxDelay, mountAt, selectedId, hovered
     if (!m) return;
     const now = performance.now();
     const animating = motion && ((now - mountAt) / 1000 < maxDelay || now - lastBirth < 1600 || hasSeeds || selectedId);
-    if (!animating && !dirty.current) return;
+    if (replayDirty()) dirty.current = true;
+    if (!animating && !dirty.current && !useReplay.getState().playing) return;
     dirty.current = false;
     const t = clock.elapsedTime;
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i];
-      const g = clamp01(growth(e.id, e.delay, now));
+      const g = clamp01(growth(e, now));
       let s = e.size * (g < 1 ? Math.max(0, easeBack(g)) : 1);
       if (e.id === selectedId) s *= 1.7 + 0.15 * Math.sin(t * 4) * motion;
       else if (e.id === hoveredId) s *= 1.4;
@@ -402,7 +474,7 @@ function Nodes({ entries, growth, motion, maxDelay, mountAt, selectedId, hovered
       <instancedMesh ref={mesh} args={[geometry, material, cap]} frustumCulled={false} raycast={() => null} />
       <instancedMesh
         ref={pick}
-        args={[geometry, pickMaterial, cap]}
+        args={[pickGeometry, pickMaterial, cap]}
         onPointerMove={(e) => {
           e.stopPropagation();
           const id = idAt(e);

@@ -18,7 +18,7 @@ A living tree of your thoughts. Capture a thought in under three seconds, then w
 | --- | --- |
 | Trunk | You |
 | Limbs | Themes / domains you create (Work, Life, Ideas…) |
-| Branches → twigs | A thought → its follow-ups, any depth |
+| Branches → sub-branches | A thought → its follow-ups, any depth. Branches are bold with a limb-coloured spine and round buds; sub-branches are paler, with diamond buds in the Canopy |
 | Seeds | Quick captures waiting in the inbox |
 | Vines | Links between thoughts on different branches |
 | Blossoms | A thought that became an action, or is done |
@@ -28,7 +28,7 @@ Every thought has a status: `seed → growing → blooming → dormant → prune
 
 ## Using it
 
-- **Capture:** press `/` (or `Ctrl/⌘+Space`) anywhere, type, then press `Enter`. Add `#tags` inline. `Shift+Enter` keeps the box open so you can dump several thoughts in a row. `Tab` files the thought as a follow-up of the one you have selected. On a phone, use the ＋ button.
+- **Capture:** press `/` (or `Ctrl/⌘+Space`) anywhere, type, then press `Enter`. Tap **Voice** to speak instead (Chrome, Edge, Safari). On Android you can also use **Share → Mindgrove** from any app to drop a seed. Add `#tags` inline. `Shift+Enter` keeps the box open so you can dump several thoughts in a row. `Tab` files the thought as a follow-up of the one you have selected. On a phone, use the ＋ button.
 - **Grove:** a keyboard-first outline, grouped by limb.
   - `↑ ↓` move · `← →` fold, unfold, or jump to parent · `Enter` rename · `Space` open details
   - `O` new thought below · `N` new follow-up. Once you're editing, `Enter` starts the next one, so you can write a whole list without touching the mouse.
@@ -36,7 +36,10 @@ Every thought has a status: `seed → growing → blooming → dormant → prune
   - `M` move to a limb or thought · `L` grow a vine · `Del` remove (you get an undo toast)
   - Drag rows to re-parent them. Drop on the top or bottom edge of a row to place before or after it, in the middle to nest under it, or on a limb or Seeds header to plant it there.
   - Search and filter by status, tag, limb, or wilting.
-- **Canopy:** press `V`. Drag to orbit, scroll to zoom, click a light to fly to it and open it. The arrow keys still walk the tree, because selection is shared between the two views.
+- **Tend** (`W`, or the WILTING counter): walks you through stale thoughts. Revive, park or prune each with one tap. Once a day, the app mentions any wilting thoughts when it opens.
+- **Vine suggestions:** the detail panel proposes related thoughts on other limbs, based on shared tags and words. Add one as a vine or dismiss it.
+- **Limbs:** drag a limb header onto another to reorder them, or use ↑↓ in Settings.
+- **Canopy:** press `V`. **Replay** plays your tree growing over time, or you can scrub through it with the slider. Drag to orbit, scroll to zoom, click a light to fly to it and open it. The arrow keys still walk the tree, because selection is shared between the two views.
 - **Command palette:** `Ctrl/⌘+K` for every action and for jumping to any thought.
 - **Settings** (`?`): three themes (cyan holo, bioluminescent, aurora), reduced motion, particle level, when thoughts start to wilt, limb names and colours, and the keyboard reference.
 
