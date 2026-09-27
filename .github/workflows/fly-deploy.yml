@@ -35,3 +35,17 @@ jobs:
       - name: Deploy
         if: env.FLY_API_TOKEN != ''
         run: flyctl deploy --remote-only --ha=false
+      - name: Smoke test the live site
+        if: env.FLY_API_TOKEN != ''
+        run: |
+          flyctl status --app mindgrove
+          ok=""
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://mindgrove.fly.dev/manifest.webmanifest || true)
+            echo "attempt $i: $code"
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 10
+          done
+          curl -sSI https://mindgrove.fly.dev/ || true
+          flyctl logs --app mindgrove --no-tail | tail -40 || true
+          [ -n "$ok" ] || { echo "::error::https://mindgrove.fly.dev/ did not return 200"; exit 1; }
