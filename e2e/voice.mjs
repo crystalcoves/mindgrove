@@ -26,6 +26,8 @@ await page.keyboard.press("Enter");
 await page.waitForSelector(".v-drop");
 const tier = process.env.MODEL ?? "Fast";
 console.log("model tier:", tier);
+// Tiers are enabled or blocked once the app has checked what this device can run.
+await page.waitForSelector(".v-opts[data-fit=ready]");
 const tierButton = page.locator(`.v-opts .seg button:has-text('${tier}')`);
 if (await tierButton.isDisabled()) {
   // The app blocks tiers this device can't run (e.g. Best without a GPU).

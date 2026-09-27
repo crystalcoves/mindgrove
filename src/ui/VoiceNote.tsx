@@ -148,7 +148,7 @@ function Pick() {
           <small>m4a · mp3 · wav · ogg/opus · webm, up to about an hour</small>
         </label>
         {error && <div className="v-error">{error}</div>}
-        <div className="v-opts">
+        <div className="v-opts" data-fit={fit ? "ready" : "checking"}>
           <div className="field">
             <span>
               Quality<small>Downloaded once, then works offline</small>
