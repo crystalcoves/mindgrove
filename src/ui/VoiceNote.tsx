@@ -147,8 +147,9 @@ function Pick() {
           </label>
         </div>
         <small className="dim">
-          Transcribed on this device, so your audio is never uploaded. Long notes take a while (on a typical laptop, about as long as the
-          recording or longer; faster where the browser can use the graphics card). You can minimise this and keep working.
+          Transcribed on this device, so your audio is never uploaded. On a typical laptop a 20-minute note takes about 10 minutes on Fast,
+          20 on Balanced and much longer on Best (faster where the browser can use the graphics card). You can minimise this and keep
+          working.
         </small>
       </div>
     </>

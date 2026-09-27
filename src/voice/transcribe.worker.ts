@@ -80,6 +80,10 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
       const out = await pipe(msg.audio, {
         return_timestamps: true,
         chunk_length_s: 30,
+        // Keep Whisper from getting stuck repeating itself: ~30 s of speech is
+        // well under 200 tokens, and a light penalty breaks loops.
+        max_new_tokens: 200,
+        repetition_penalty: 1.15,
         ...(msg.language ? { language: msg.language, task: "transcribe" } : {}),
       });
       const dur = msg.audio.length / 16000;

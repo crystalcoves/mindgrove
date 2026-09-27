@@ -52,14 +52,37 @@ export function splitWindows(audio: Float32Array, sr = SAMPLE_RATE, max = 28, se
 // Whisper invents these over silence or music; drop them.
 const NOISE =
   /^\s*[[(]?\s*(blank[_ ]audio|silence|music|applause|laughter|inaudible|no speech|noise|background noise|sound|foreign)\s*[\])]?\s*\.?\s*$/i;
-const HALLUCINATIONS = [/^thanks? (you )?for watching[.!]*$/i, /^please subscribe[.!]*$/i, /^subtitles by .*$/i, /^\.+$/];
+const HALLUCINATIONS = [
+  /^thanks? (you )?(so much )?for (watching|listening)[.!]*$/i,
+  /^(please |don'?t forget to )?(like (and|&) )?subscribe( to (my|the|our) channel)?[.!]*$/i,
+  /^subtitles by .*$/i,
+  /^\.+$/,
+];
+// Stock phrases Whisper tacks onto the end of otherwise-real text.
+const TAIL_JUNK =
+  /\s*(?:(?:please |and )?(?:don'?t forget to )?(?:like (?:and|&) )?subscribe(?: to (?:my|the|our) channel)?|thanks? (?:you )?for watching)[.!]*\s*$/i;
+
+/** Collapse a phrase repeated 3+ times in a row (Whisper's decoding loops) to one. */
+export function collapseLoops(text: string): string {
+  let out = text;
+  for (let i = 0; i < 3; i++) {
+    const next = out.replace(/\b(\S+(?:\s+\S+){0,11}?)(?:[\s,.;:-]+\1\b){2,}/gi, "$1");
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
 
 export function cleanChunks(chunks: TimedText[]): TimedText[] {
   const out: TimedText[] = [];
   for (const c of chunks) {
-    const text = c.text
-      .replace(/\[[^\]]*\]|\(\s*(music|laughs?|applause|silence|inaudible)\s*\)/gi, " ")
-      .replace(/\s+/g, " ")
+    const text = collapseLoops(
+      c.text
+        .replace(/\[[^\]]*\]|\(\s*(music|laughs?|applause|silence|inaudible)\s*\)/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+      .replace(TAIL_JUNK, "")
       .trim();
     if (!text || NOISE.test(text) || HALLUCINATIONS.some((r) => r.test(text))) continue;
     // Whisper sometimes loops the same line; keep one.

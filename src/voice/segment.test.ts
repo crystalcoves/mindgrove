@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   previewAfterTitle,
+  collapseLoops,
   cleanChunks,
   formatTime,
   mergeWithNext,
@@ -111,5 +112,25 @@ describe("previewAfterTitle", () => {
     expect(previewAfterTitle("Only one sentence.", "Only one sentence")).toBe("Only one sentence.");
     expect(previewAfterTitle("Long text here", "Long…")).toBe("Long text here");
     expect(previewAfterTitle("Something else. More.", "A renamed title")).toBe("Something else. More.");
+  });
+});
+
+describe("decoding loops and stock phrases", () => {
+  it("collapses phrases repeated three or more times", () => {
+    expect(collapseLoops("this is about the 3-night of the 3-night of the 3-night of the 3-night of the garden")).toBe(
+      "this is about the 3-night of the garden",
+    );
+    expect(collapseLoops("the third time, the third time, the third time.")).toBe("the third time.");
+    // A single genuine repeat stays.
+    expect(collapseLoops("I really really want this")).toBe("I really really want this");
+  });
+
+  it("drops subscribe/watching lines, alone or tacked on", () => {
+    const out = cleanChunks([
+      { start: 0, end: 3, text: "Don't forget to subscribe to my channel." },
+      { start: 3, end: 6, text: "Remember to water the plants. Don't forget to subscribe to my channel." },
+      { start: 6, end: 8, text: "Thanks for listening!" },
+    ]);
+    expect(out.map((c) => c.text)).toEqual(["Remember to water the plants."]);
   });
 });
