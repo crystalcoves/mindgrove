@@ -24,7 +24,8 @@ let loadedKey = "";
 let device: "webgpu" | "wasm" = "wasm";
 
 export type WorkerIn =
-  { type: "load"; model: string } | { type: "window"; id: number; audio: Float32Array; offset: number; language: string | null };
+  | { type: "load"; model: string }
+  | { type: "window"; id: number; audio: Float32Array; offset: number; language: string | null; strict?: boolean };
 
 export type WorkerOut =
   | { type: "loading"; progress: number; loaded: number; total: number }
@@ -83,7 +84,9 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
         // Keep Whisper from getting stuck repeating itself: ~30 s of speech is
         // well under 200 tokens, and a light penalty breaks loops.
         max_new_tokens: 200,
-        repetition_penalty: 1.15,
+        repetition_penalty: msg.strict ? 1.3 : 1.15,
+        // Second attempt for a window that looped: forbid repeating any 3 words.
+        ...(msg.strict ? { no_repeat_ngram_size: 3 } : {}),
         ...(msg.language ? { language: msg.language, task: "transcribe" } : {}),
       });
       const dur = msg.audio.length / 16000;

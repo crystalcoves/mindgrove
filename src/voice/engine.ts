@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { looksLooped, prepareAudio, speechShare } from "./audio";
 import { cleanChunks, SAMPLE_RATE, splitWindows, toParagraphs, type Paragraph, type TimedText } from "./segment";
 import type { WorkerIn, WorkerOut } from "./transcribe.worker";
 
@@ -116,7 +117,9 @@ export async function transcribeFile(file: File, opts: { model: ModelKey; langua
   const alive = () => my === job;
   useVoice.setState({ ...initial, open: useVoice.getState().open, phase: "decoding", fileName: file.name, startedAt: Date.now() });
   try {
-    const audio = await decodeAudio(file);
+    const decoded = await decodeAudio(file);
+    // Filter rumble, even out loudness, and learn what silence sounds like here.
+    const { audio, loudness } = prepareAudio(decoded, SAMPLE_RATE);
     if (!alive()) return;
     const duration = audio.length / SAMPLE_RATE;
     if (duration < 0.5) throw new Error("That recording is empty.");
@@ -138,11 +141,19 @@ export async function transcribeFile(file: File, opts: { model: ModelKey; langua
       const { start, end } = windows[i];
       const slice = audio.slice(start, end);
       const offset = start / SAMPLE_RATE;
-      let chunks: TimedText[];
-      if (fakeT) chunks = await fakeT(slice, offset);
-      else {
-        const res = await call(w!, { type: "window", id: i, audio: slice, offset, language: opts.language }, [slice.buffer]);
-        chunks = res.type === "result" ? res.chunks : [];
+      let chunks: TimedText[] = [];
+      // Skip windows that are basically silence: nothing to hear, and it's where
+      // Whisper is most likely to invent text.
+      if (speechShare(slice, SAMPLE_RATE, loudness) >= 0.02) {
+        const run = async (strict: boolean) => {
+          if (fakeT) return fakeT(slice.slice(), offset);
+          const copy = slice.slice(); // the buffer is transferred to the worker
+          const res = await call(w!, { type: "window", id: i, audio: copy, offset, language: opts.language, strict }, [copy.buffer]);
+          return res.type === "result" ? res.chunks : [];
+        };
+        chunks = await run(false);
+        // Stuck in a loop? Run this window again with stricter decoding.
+        if (looksLooped(chunks.map((c) => c.text).join(" "))) chunks = await run(true);
       }
       if (!alive()) return;
       const all = cleanChunks([...useVoice.getState().chunks, ...chunks]);
