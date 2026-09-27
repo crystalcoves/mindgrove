@@ -326,16 +326,23 @@ function TagsField({ t }: { t: Thought }) {
 
 /** Where a voice note's recording is played from: its own saved audio, or (for a part planted as a branch) its parent's. */
 function useVoiceAudio(t: Thought) {
+  const thoughts = useStore((s) => s.thoughts);
   const ownerId = t.tags.includes("voice") ? (/^\*Voice note ·/.test(t.body) ? t.id : t.parentId) : null;
+  const owner = ownerId ? thoughts[ownerId] : undefined;
   const [url, setUrl] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [version, setVersion] = useState(0);
   const el = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
     setUrl(null);
+    setChecked(false);
     if (!ownerId) return;
     let objectUrl: string | null = null;
     let live = true;
     void audioStore.get(ownerId).then((a) => {
-      if (!a || !live) return;
+      if (!live) return;
+      setChecked(true);
+      if (!a) return;
       objectUrl = URL.createObjectURL(a.blob);
       setUrl(objectUrl);
     });
@@ -343,7 +350,7 @@ function useVoiceAudio(t: Thought) {
       live = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [ownerId]);
+  }, [ownerId, version]);
   const seek = url
     ? (sec: number) => {
         const a = el.current;
@@ -352,12 +359,63 @@ function useVoiceAudio(t: Thought) {
         void a.play().catch(() => {});
       }
     : null;
-  return { url, el, seek };
+  // What the transcript says it came from: "*Voice note · 27:12 · name.opus · transcribed …*".
+  const meta = owner ? /^\*Voice note · ([\d:]+) · (.+?) · transcribed/.exec(owner.body) : null;
+  const expected = meta ? { duration: parseTime(meta[1]), name: meta[2] } : null;
+  /** Keep a recording for a voice note planted before recordings were saved. */
+  const attach = async (file: File) => {
+    if (!ownerId) return;
+    await audioStore.save(ownerId, file, file.name);
+    setVersion((v) => v + 1);
+    const probe = new Audio(URL.createObjectURL(file));
+    probe.onloadedmetadata = () => {
+      const want = expected?.duration;
+      if (want != null && Number.isFinite(probe.duration) && Math.abs(probe.duration - want) > 10)
+        useStore
+          .getState()
+          .toast(`That recording is ${formatTime(probe.duration)}, the transcript ${formatTime(want)}: the timestamps may not line up`);
+      URL.revokeObjectURL(probe.src);
+    };
+  };
+  return { url, el, seek, missing: !!ownerId && checked && !url, attach, expected };
 }
 
 type VoiceAudioState = ReturnType<typeof useVoiceAudio>;
 
 function VoicePlayer({ t, audio }: { t: Thought; audio: VoiceAudioState }) {
+  const input = useRef<HTMLInputElement>(null);
+  if (audio.missing)
+    return (
+      <section className="d-sec voice-play">
+        <div className="label">
+          Recording
+          <button className="btn small" onClick={() => input.current?.click()}>
+            ＋ Attach recording
+          </button>
+        </div>
+        <input
+          ref={input}
+          type="file"
+          accept="audio/*,.m4a,.mp3,.wav,.ogg,.opus,.webm,.aac,.flac,.amr"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void audio.attach(f);
+            e.target.value = "";
+          }}
+        />
+        <small className="dim">
+          Not saved on this device yet. Attach the original file to play it from the transcript's timestamps; nothing is transcribed again.
+          {audio.expected && (
+            <>
+              {" "}
+              It was <b>{audio.expected.name}</b>
+              {audio.expected.duration != null && <> ({formatTime(audio.expected.duration)})</>}.
+            </>
+          )}
+        </small>
+      </section>
+    );
   if (!audio.url) return null;
   // A part planted as a branch remembers where it came from: "…at 12:05".
   const from = /at (\d+:\d{2}(?::\d{2})?)\*?\s*$/.exec(t.body)?.[1];
