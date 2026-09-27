@@ -25,7 +25,7 @@ let last = "";
 const timer = setInterval(async () => {
   const s = await page.textContent(".v-status").catch(() => null);
   if (s && s !== last) console.log(`[${Math.round((Date.now() - t0) / 1000)}s] ${(last = s)}`);
-}, 3000);
+}, 2000);
 try {
   await page.waitForSelector(".v-parts, .v-error", { timeout: 9 * 60_000 });
 } finally {

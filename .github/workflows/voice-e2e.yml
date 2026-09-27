@@ -24,7 +24,9 @@ jobs:
       - name: Synthesise a spoken voice note
         run: |
           sudo apt-get install -y espeak-ng >/dev/null
-          espeak-ng -s 150 -w speech.wav "Good morning. This is a voice note about the garden. The tree by the fence needs more light and water. I had a thought about moving the bench. Remember to water the tomatoes every morning. The garden is my favourite thought of the day."
+          # About two minutes, so the log shows steady-state speed, not just warm-up.
+          T="Good morning. This is a voice note about the garden. The tree by the fence needs more light and water. I had a thought about moving the bench. Remember to water the tomatoes every morning. The garden is my favourite thought of the day."
+          espeak-ng -s 150 -w speech.wav "$T $T $T $T $T $T $T $T"
           ls -la speech.wav
       - run: npm run build
       - name: Transcribe through the UI
