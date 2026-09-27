@@ -1,5 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import type { Limb, Link, Settings, Snapshot, Thought } from "../model/types";
+import { notifyChange } from "./notify";
 
 interface KV {
   key: string;
@@ -55,20 +56,20 @@ export async function loadAll(): Promise<
 
 /** Persistence is write-behind: the store is the source of truth while the app runs. */
 export const persist = {
-  putThoughts: (ts: Thought[]) => db.thoughts.bulkPut(ts).catch(report),
-  deleteThoughts: (ids: string[]) => db.thoughts.bulkDelete(ids).catch(report),
-  putLimbs: (ls: Limb[]) => db.limbs.bulkPut(ls).catch(report),
-  deleteLimb: (id: string) => db.limbs.delete(id).catch(report),
-  putLinks: (ls: Link[]) => db.links.bulkPut(ls).catch(report),
-  deleteLinks: (ids: string[]) => db.links.bulkDelete(ids).catch(report),
-  setKV: (key: string, value: unknown) => db.kv.put({ key, value }).catch(report),
+  putThoughts: (ts: Thought[]) => db.thoughts.bulkPut(ts).then(notifyChange, report),
+  deleteThoughts: (ids: string[]) => db.thoughts.bulkDelete(ids).then(notifyChange, report),
+  putLimbs: (ls: Limb[]) => db.limbs.bulkPut(ls).then(notifyChange, report),
+  deleteLimb: (id: string) => db.limbs.delete(id).then(notifyChange, report),
+  putLinks: (ls: Link[]) => db.links.bulkPut(ls).then(notifyChange, report),
+  deleteLinks: (ids: string[]) => db.links.bulkDelete(ids).then(notifyChange, report),
+  setKV: (key: string, value: unknown) => db.kv.put({ key, value }).then(notifyChange, report),
   replaceAll: (s: Snapshot) =>
     db
       .transaction("rw", db.thoughts, db.limbs, db.links, async () => {
         await Promise.all([db.thoughts.clear(), db.limbs.clear(), db.links.clear()]);
         await Promise.all([db.thoughts.bulkPut(s.thoughts), db.limbs.bulkPut(s.limbs), db.links.bulkPut(s.links)]);
       })
-      .catch(report),
+      .then(notifyChange, report),
 };
 
 function report(err: unknown) {

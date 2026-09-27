@@ -101,6 +101,8 @@ interface Actions {
   replaceAll(s: Snapshot): void;
   /** Replace data with a merged sync document, keeping UI state. */
   applySync(doc: SyncDoc): void;
+  /** Take in data another open copy of the app already stored (no re-write). */
+  absorb(doc: SyncDoc): void;
   merge(s: Snapshot): void;
   snapshot(): Snapshot;
 
@@ -346,10 +348,11 @@ export const useStore = create<Store>()((set, get) => {
           selectedId: selectedId === id ? (t.parentId ?? kids[0]?.id ?? sibs[i + 1]?.id ?? sibs[i - 1]?.id ?? null) : selectedId,
         };
       });
+      // Tombstone first, so another open copy never sees the deletion without it.
+      bury([id, ...deadLinks.map((l) => l.id)]);
       db.deleteThoughts([id]);
       db.putThoughts(lifted);
       db.deleteLinks(deadLinks.map((l) => l.id));
-      bury([id, ...deadLinks.map((l) => l.id)]);
 
       if (opts?.silent) return;
       get().toast(`Removed “${truncate(t.title || "untitled", 40)}”`, {
@@ -454,9 +457,9 @@ export const useStore = create<Store>()((set, get) => {
         delete next[id];
         return { limbs: next };
       });
+      bury([id]);
       putThoughts(moved);
       db.deleteLimb(id);
-      bury([id]);
       get().toast(`Removed limb “${limb.name}” — ${moved.length} branch${moved.length === 1 ? "" : "es"} returned to seeds`);
     },
 
@@ -476,8 +479,8 @@ export const useStore = create<Store>()((set, get) => {
         delete next[id];
         return { links: next };
       });
-      db.deleteLinks([id]);
       bury([id]);
+      db.deleteLinks([id]);
     },
 
     dismissVine(a, b) {
@@ -518,6 +521,16 @@ export const useStore = create<Store>()((set, get) => {
       }));
       db.replaceAll(doc);
       db.setKV("tombstones", doc.tombstones);
+    },
+
+    absorb(doc) {
+      set((st) => ({
+        thoughts: Object.fromEntries(doc.thoughts.map((t) => [t.id, t])),
+        limbs: Object.fromEntries(doc.limbs.map((l) => [l.id, l])),
+        links: Object.fromEntries(doc.links.map((l) => [l.id, l])),
+        tombstones: doc.tombstones,
+        selectedId: st.selectedId && doc.thoughts.some((t) => t.id === st.selectedId) ? st.selectedId : null,
+      }));
     },
 
     merge(s) {

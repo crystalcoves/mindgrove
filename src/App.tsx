@@ -12,6 +12,7 @@ import { THEMES } from "./ui/themes";
 import { useHotkeys } from "./ui/useHotkeys";
 import { shareToText } from "./lib/share";
 import { bootSync } from "./sync/engine";
+import { watchOtherTabs } from "./sync/tabs";
 
 // three.js only loads when the canopy is first opened, keeping the Grove instant.
 const Canopy = lazy(() => import("./canopy/Canopy"));
@@ -29,6 +30,7 @@ export default function App() {
       .init()
       .then(() => {
         receiveShare();
+        watchOtherTabs();
         void bootSync();
       });
   }, []);
