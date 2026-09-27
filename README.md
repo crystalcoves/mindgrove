@@ -114,6 +114,8 @@ One-time setup: create a deploy token with `fly tokens create org personal` (or 
 
 Manual deploy from your machine: `fly deploy`.
 
+Updates reach open and installed copies without a reinstall. The app checks for a new version whenever it comes back to the front (and hourly). It switches straight away if nothing is in progress; otherwise it shows **Reload**, so a transcription or a half-typed thought is never lost.
+
 `.github/workflows/ci.yml` runs the format check, the tests, and the build on pull requests.
 
 ## Roadmap

@@ -64,3 +64,8 @@ jobs:
           flyctl logs --app mindgrove --no-tail | tail -40 || true
           [ -n "$ok" ] || { echo "::error::https://mindgrove.fly.dev/ did not return 200"; exit 1; }
           [ "$sync" = "404" ] || { echo "::error::sync API did not answer as expected ($sync)"; exit 1; }
+          # The live page must reference this build's app bundle (proves the new version is serving).
+          want=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
+          live=$(curl -s https://mindgrove.fly.dev/ | grep -o 'assets/index-[A-Za-z0-9_-]*\.js' | head -1)
+          echo "built: $want  live: $live"
+          [ "$want" = "$live" ] || { echo "::error::live site is not serving this build"; exit 1; }

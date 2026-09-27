@@ -10,7 +10,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      // "prompt": src/lib/update.ts decides when to switch, so an update never reloads mid-task.
+      registerType: "prompt",
       includeAssets: ["icon.svg"],
       manifest: {
         name: "Mindgrove",
