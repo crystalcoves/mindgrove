@@ -13,7 +13,8 @@
     "format": "prettier --write src server",
     "lint": "prettier --check src server && tsc -b",
     "server": "node server/server.mjs",
-    "serve": "npm run build && node server/server.mjs"
+    "serve": "npm run build && node server/server.mjs",
+    "deploy": "node tools/vultr_app.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
