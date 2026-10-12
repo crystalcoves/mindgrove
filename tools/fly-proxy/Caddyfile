@@ -1,0 +1,9 @@
+# mindgrove.fly.dev after the move to https://mindgrove.brunet.tv (2026-10-12): a pass-through, not a redirect.
+# A phone that installed Mindgrove here keeps its own grove and sync code in this origin's storage; through
+# this proxy it reads and writes the same sync store as mindgrove.brunet.tv, so both stay one grove. Once every
+# device has its sync code entered on mindgrove.brunet.tv this app can go.
+:8080 {
+	reverse_proxy https://mindgrove.brunet.tv {
+		header_up Host mindgrove.brunet.tv
+	}
+}

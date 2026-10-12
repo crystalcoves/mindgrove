@@ -1,0 +1,21 @@
+# mindgrove.fly.dev as a pass-through to https://mindgrove.brunet.tv (see Caddyfile). Deploy from this folder: fly deploy
+app = "mindgrove"
+primary_region = "jnb"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[mounts]
+  source = "mindgrove_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
